@@ -2,17 +2,29 @@
 
 import random
 
+# Simulation parameters
+days_to_run = 999
+random.seed(5)
+
+# Epidemic parameters
 beta = .25
 gamma = .3
 sigma = .35
 mu = .1
+theta = .1  # mother -> child transmission
+kappa = .1  # sexual contact
+zeta = .1  # blood transfusion
+tau = .1  # chance a mosquito picks up zika from human
 
+# Human population parameters
 initial_susceptible = 9999999
 initial_exposed = 0
 initial_infected = 1
 
-days_to_run = 999
-random.seed(5)
+# Mosquito population parameters
+mosquito_susceptible = initial_susceptible * 10
+mosquito_exposed = 0
+mosquito_init_infectd = 0
 
 
 def build_population(N):
@@ -42,6 +54,7 @@ def build_vectors(N):
     :param N: Number of vectors
     :return: Dict of dicts N size, with parameters
     """
+    infected_mosquitos = 0
 
     vector_population = dict(
         (i, {
@@ -53,7 +66,13 @@ def build_vectors(N):
         }) for i in range(N)
     )
 
+    # Infect the number of mosquitos set at beginning of script
+    for x in vector_population:
+        if random.randint(0, N) == x:
+            vector_population[x]['infected'] = True
+
     return vector_population
+
 
 def main():
     population = (build_population(999))
