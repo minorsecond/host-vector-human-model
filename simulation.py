@@ -26,7 +26,7 @@ initial_exposed = 0
 initial_infected = 1
 
 # Mosquito population parameters
-mosquito_susceptible = 1000000
+mosquito_susceptible_coef = 200  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 
@@ -41,71 +41,129 @@ def prompt(question):
         return question("Try again: ")
 
 
-def build_population(N):
+def build_population():
     """
     Builds population with parameters
     :param N: Population size
     :return: Dict of dicts N size, with parameters
     """
-    # Dict of dicts, with each key having its own parameters
-    population = dict(
-        (i, {
-            'age': random.randint(0,99),
-            'sex': random.choice(['Male', 'Female']),
-            'pregnant': 'False',
-            'susceptible': 'True',
-            'infected': 'False',
-            'exposed': 'True',
-            'recovered': 'False',
-            'dayOfInf': 0,
-            'dayOfExp': 0,
-            'dayOfRec': 0,
-            'recState': 0,
-            'resistant': False,
-            'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
-            'y': np.random.uniform(2098719.000, 2147597.000)
 
-        }) for i in range(N)
-    )
+    subregions_list = []
 
-    for x in population:
-        if population[x].get('sex') == "Female":
-            if population[x].get('age') >= 15 and population[x].get('age') < 51:
-                if random.randint(0, 100) < 4:
-                    population[x]['pregnant'] = 'True'
+    in_subregion_data = os.path.join(working_directory, 'subregions.csv')
+    sub_regions_dict = sub_regions(in_subregion_data)
 
-    return population
+    print('Building population for {0} sub-regions. This whill take a second..'.format(len(sub_regions_dict) - 1))
+
+    for i in sub_regions_dict:
+        subregion = i
+        pop = sub_regions_dict[i].get('pop')
+
+        population = dict(
+            (x, {
+                'subregion': subregion,
+                'age': random.randint(0, 99),
+                'sex': random.choice(['Male', 'Female']),
+                'pregnant': 'False',
+                'susceptible': 'True',
+                'infected': 'False',
+                'exposed': 'True',
+                'recovered': 'False',
+                'dayOfInf': 0,
+                'dayOfExp': 0,
+                'dayOfRec': 0,
+                'recState': 0,
+                'resistant': False,
+                # 'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
+                # 'y': np.random.uniform(2098719.000, 2147597.000)
+
+            }) for x in range(pop)
+        )
+
+        for x in population:
+            if population[x].get('sex') == "Female":
+                if population[x].get('age') >= 15 and population[x].get('age') < 51:
+                    if random.randint(0, 100) < 4:
+                        population[x]['pregnant'] = 'True'
+
+        subregions_list.append(population)
+    return subregions_list
 
 
-def build_vectors(N):
+def build_vectors(in_subregion_data):
     """
     Builds vector population
     :param N: Number of vectors
     :return: Dict of dicts N size, with parameters
     """
     infected_mosquitos = 0
+    subregions_list = []
 
-    vector_population = dict(
-        (i, {
-            'range': random.uniform(0, 500),  # 500 meters or so
-            'lifetime': random.uniform(0, 14),  # in days
-            'susceptible': 'True',
-            'exposed': 'False',
-            'infected': 'False',
-            'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
-            'y': np.random.uniform(2098719.000, 2147597.000)
-        }) for i in range(N)
-    )
+    sub_regions_dict = sub_regions(in_subregion_data)
+
+    print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
+
+    for i in sub_regions_dict:
+        subregion = i
+        area = float(sub_regions_dict[i].get('area'))
+        vector_pop = (area / 1000000) * mosquito_susceptible_coef  # sq. meters to square km
+
+        vector_population = dict(
+            (i, {
+                'subregion': subregion,
+                'range': random.uniform(0, 500),  # 500 meters or so
+                'lifetime': random.uniform(0, 14),  # in days
+                'susceptible': 'True',
+                'exposed': 'False',
+                'infected': 'False',
+                'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
+                'y': np.random.uniform(2098719.000, 2147597.000)
+            }) for x in range(vector_pop)
+        )
 
     # Infect the number of mosquitos set at beginning of script
-    for x in vector_population:
-        if random.randint(0, N) == x:
-            vector_population[x]['infected'] = True
+        for x in vector_population:
+            if random.randint(0, N) == x:
+                vector_population[x]['infected'] = True
 
-    return vector_population
+        subregions_list.append(vector_population)
 
+    return subregions_list
+
+
+def sub_regions(filename):
+    """
+    Read CSV
+    :param filename: CSV filename
+    :return: Dict of subregions
+    """
+
+    header = 0
+    subregion = {}
+
+    with open(filename, 'r') as csvfile:
+        has_header = csv.Sniffer().has_header(csvfile.read(1024))
+        csvfile.seek(0)
+        reader = csv.reader(csvfile, delimiter=',')
+        if has_header:
+            next(reader)
+        subregion = dict(
+            (row[0], {
+                'pop': int(row[1]),
+                'area': row[2]
+            }) for row in reader
+        )
+
+    return subregion
 
 def writer(filename, line):
+    """
+    Write data to CSV, line by line
+    :param filename: CSV file to write to
+    :param line: Line to write
+    :return:
+    """
+
     with open(filename, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         writer.writerow(line)
@@ -152,41 +210,43 @@ def build_population_files(directory):
     vector_structure_file = os.path.join(directory, 'vector_population.csv')
     check_if_file_exists(vector_structure_file)
 
-
     pregnancy_eligible = 0
     pregnant_count = 0
     header_count = 0
     run_count = 0
 
     # Print population structure info
-    population = (build_population(initial_susceptible))
-    for i in population:
-        age = population[i].get('age')
-        sex = population[i].get('sex')
-        pregnant = population[i].get('pregnant')
-        x = population[i].get('x')
-        y = population[i].get('y')
+    population = (build_population())
 
-        if sex == "Female":
-            if age >= 14 and age < 51:
-                pregnancy_eligible += 1
-        if pregnant == 'True':
-            pregnant_count += 1
-
-        if header_count == 0:
-            lineOut = ['Individual ID', 'Age', 'Sex', 'Pregnancy Status', 'x', 'y']
+    while header_count == 0:
+        lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
             header_count = 1
-
-        else:
-            lineOut = [i, age, sex, pregnant, x, y]
         writer(population_structure_file, lineOut)
+    else:
+        for dictionary in population:
+            for i in dictionary:
+                subregion = dictionary[i].get('subregion')
+                age = dictionary[i].get('age')
+                sex = dictionary[i].get('sex')
+                pregnant = dictionary[i].get('pregnant')
 
-        if run_count == 0:
-            print('Building population file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
+                if sex == "Female":
+                    if age >= 14 and age < 51:
+                        pregnancy_eligible += 1
+                if pregnant == 'True':
+                    pregnant_count += 1
 
-        run_count += 1
-        if run_count % (len(population) / 100) == 0:
-            print('Building population file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
+                else:
+                    lineOut = [subregion, i, age, sex, pregnant]
+                writer(population_structure_file, lineOut)
+
+            if run_count == 0:
+                print('\nBuilding population file: {0}% Complete'.format(
+                    round(output_status(run_count, len(dictionary)))))
+
+            run_count += 1
+            if run_count % (len(dictionary) / 100) == 0:
+                print('Building population file: {0}% Complete'.format(round(output_status(run_count, len(dictionary)))))
 
     # Print vector structure info
 
@@ -197,26 +257,27 @@ def build_population_files(directory):
     run_count = 0
     header_count = 0
 
-    for i in vector:
-        range = vector[i].get('range')
-        lifetime = vector[i].get('lifetime')
-        x = vector[i].get('x')
-        y = vector[i].get('y')
+    for dictionary in vector:
+        for i in dictionary:
+            range = vector[i].get('range')
+            lifetime = vector[i].get('lifetime')
+            x = vector[i].get('x')
+            y = vector[i].get('y')
 
-        if header_count == 0:
-            lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
-            header_count = 1
+            if header_count == 0:
+                lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
+                header_count = 1
 
-        else:
-            lineOut = [i, range, lifetime, x, y]
-        writer(vector_structure_file, lineOut)
+            else:
+                lineOut = [i, range, lifetime, x, y]
+            writer(vector_structure_file, lineOut)
 
-        if run_count == 0:
-            print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
+            if run_count == 0:
+                print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
 
-        run_count += 1
-        if run_count % (len(vector) / 100) == 0:
-            print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(vector)))))
+            run_count += 1
+            if run_count % (len(vector) / 100) == 0:
+                print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(vector)))))
 
     # stats
 
@@ -237,6 +298,8 @@ def simulation():
 
 
 def main():
+    global working_directory
+
     working_directory = input("Which directory should I place output data?: ")
 
     if not os.path.exists(working_directory):
