@@ -2,7 +2,7 @@
 SQLite database files
 """
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, create_engine
+from sqlalchemy import Column, Integer, String, Float, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('sqlite:///simulation.db')
@@ -18,7 +18,7 @@ class Humans(Base):
 
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True)
-    p_uuid = Column(String)
+    uniqueID = Column(String)
     subregion = Column(String)
     age = Column(Integer)
     sex = Column(String)
@@ -31,6 +31,8 @@ class Humans(Base):
     dayOfExp = Column(Integer)
     dayOfRec = Column(Integer)
     resistant = Column(String)
+    x = Column(String)
+    y = Column(String)
 
 
 class Vectors(Base):
@@ -40,12 +42,13 @@ class Vectors(Base):
 
     __tablename__ = "vectors"
     id = Column(Integer, primary_key=True)
+    uniqueID = Column(String)
     subregion = Column(String)
     range = Column(Float)
     lifetime = Column(Integer)
-    susceptible = Column(Boolean)
-    exposed = Column(Boolean)
-    infected = Column(Boolean)
+    susceptible = Column(String)
+    exposed = Column(String)
+    infected = Column(String)
     x = Column(String)
     y = Column(String)
 

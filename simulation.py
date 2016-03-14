@@ -7,6 +7,7 @@ import os.path
 import random
 from sys import exit as die
 from time import sleep
+from uuid import uuid4 as uuid
 
 import numpy as np
 from sqlalchemy import create_engine
@@ -69,6 +70,7 @@ def build_population():
 
         population = dict(
             (x, {
+                'uuid': uuid(),
                 'subregion': subregion,
                 'age': random.randint(0, 99),
                 'sex': random.choice(['Male', 'Female']),
@@ -82,8 +84,8 @@ def build_population():
                 'dayOfRec': 0,
                 'recState': 0,
                 'resistant': 'False',
-                # 'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
-                # 'y': np.random.uniform(2098719.000, 2147597.000)
+                'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
+                'y': np.random.uniform(2098719.000, 2147597.000)
 
             }) for x in range(pop)
         )
@@ -120,6 +122,7 @@ def build_vectors():
 
         vector_population = dict(
             (x, {
+                'uuid': uuid(),
                 'subregion': subregion,
                 'range': random.uniform(0, 500),  # 500 meters or so
                 'lifetime': random.uniform(0, 14),  # in days
@@ -133,7 +136,7 @@ def build_vectors():
 
     # Infect the number of mosquitos set at beginning of script
         for x in vector_population:
-            if random.randint(0, vector_pop) == x:
+            if np.random.uniform(0, 1) < .01:
                 vector_population[x]['infected'] = True
 
         subregions_list.append(vector_population)
@@ -228,13 +231,14 @@ def build_population_files(directory):
     # Print population structure info
     population = (build_population())
 
-    while header_count == 0:
-        lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
-        header_count = 1
-        writer(population_structure_file, lineOut)
+    # while header_count == 0:
+    #    lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
+    #    header_count = 1
+    #    writer(population_structure_file, lineOut)
 
     for dictionary in population:
             for i in dictionary:
+                uniqueID = dictionary[i].get('uuid')
                 subregion = dictionary[i].get('subregion')
                 age = dictionary[i].get('age')
                 sex = dictionary[i].get('sex')
@@ -247,6 +251,8 @@ def build_population_files(directory):
                 dayOfExp = dictionary[i].get('dayOfExp')
                 dayOfRec = dictionary[i].get('dayOfRec')
                 resistant = dictionary[i].get('resistant')
+                x = dictionary[i].get('x')
+                y = dictionary[i].get('y')
 
                 if sex == "Female":
                     if age >= 14 and age < 51:
@@ -254,11 +260,12 @@ def build_population_files(directory):
                 if pregnant == 'True':
                     pregnant_count += 1
 
-                else:
-                    lineOut = [subregion, i, age, sex, pregnant]
-                writer(population_structure_file, lineOut)
+                # else:
+                #    lineOut = [subregion, i, age, sex, pregnant]
+                #writer(population_structure_file, lineOut)
 
                 new_human = Humans(
+                    uniqueID=uniqueID,
                     subregion=subregion,
                     age=age,
                     sex=sex,
@@ -270,11 +277,12 @@ def build_population_files(directory):
                     dayOfInf=dayOfInf,
                     dayOfExp=dayOfExp,
                     dayOfRec=dayOfRec,
-                    resistant=resistant
+                    resistant=resistant,
+                    x=x,
+                    y=y
                 )
 
                 session.add(new_human)
-                session.commit()
 
             if run_count == 0:
                 print('\nBuilding population file: {0}% Complete'.format(
@@ -283,6 +291,7 @@ def build_population_files(directory):
             run_count += 1
             if run_count % (len(dictionary) / 100) == 0:
                 print('Building population file: {0}% Complete'.format(round(output_status(run_count, len(dictionary)))))
+    session.commit()
 
     # Print vector structure info
 
@@ -291,10 +300,11 @@ def build_population_files(directory):
 
     vector = (build_vectors())
     run_count = 0
-    header_count = 0
+    #header_count = 0
 
     for dictionary in vector:
         for i in dictionary:
+            uniqueID = uniqueID,
             subregion = dictionary[i].get('subregion')
             range = dictionary[i].get('range')
             lifetime = dictionary[i].get('lifetime')
@@ -304,15 +314,16 @@ def build_population_files(directory):
             x = dictionary[i].get('x')
             y = dictionary[i].get('y')
 
-            if header_count == 0:
-                lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
-                header_count = 1
+            # if header_count == 0:
+            #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
+            #    header_count = 1
 
-            else:
-                lineOut = [i, range, lifetime, x, y]
-            writer(vector_structure_file, lineOut)
+            # else:
+            # lineOut = [i, range, lifetime, x, y]
+            #writer(vector_structure_file, lineOut)
 
             new_vector = Vectors(
+                uniqueID=uniqueID,
                 subregion=subregion,
                 range=range,
                 lifetime=lifetime,
@@ -324,7 +335,6 @@ def build_population_files(directory):
             )
 
             session.add(new_vector)
-            session.commit
 
             if run_count == 0:
                 print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
@@ -332,6 +342,7 @@ def build_population_files(directory):
             run_count += 1
             if run_count % (len(vector) / 100) == 0:
                 print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(vector)))))
+    session.commit()
 
     # stats
 
