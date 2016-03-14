@@ -222,8 +222,8 @@ def build_population_files(directory):
         lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
             header_count = 1
         writer(population_structure_file, lineOut)
-    else:
-        for dictionary in population:
+
+    for dictionary in population:
             for i in dictionary:
                 subregion = dictionary[i].get('subregion')
                 age = dictionary[i].get('age')
