@@ -1,3 +1,7 @@
+"""
+A SEIR simulation that uses SQLite and CSV Census files to define population paramaters
+"""
+
 import csv
 import os.path
 import random
@@ -5,6 +9,10 @@ from sys import exit as die
 from time import sleep
 
 import numpy as np
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from db import Humans, Vectors
 
 # Simulation parameters
 days_to_run = 999
@@ -73,7 +81,7 @@ def build_population():
                 'dayOfExp': 0,
                 'dayOfRec': 0,
                 'recState': 0,
-                'resistant': False,
+                'resistant': 'False',
                 # 'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
                 # 'y': np.random.uniform(2098719.000, 2147597.000)
 
@@ -87,10 +95,11 @@ def build_population():
                         population[x]['pregnant'] = 'True'
 
         subregions_list.append(population)
+
     return subregions_list
 
 
-def build_vectors(in_subregion_data):
+def build_vectors():
     """
     Builds vector population
     :param N: Number of vectors
@@ -99,6 +108,7 @@ def build_vectors(in_subregion_data):
     infected_mosquitos = 0
     subregions_list = []
 
+    in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     sub_regions_dict = sub_regions(in_subregion_data)
 
     print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
@@ -106,10 +116,10 @@ def build_vectors(in_subregion_data):
     for i in sub_regions_dict:
         subregion = i
         area = float(sub_regions_dict[i].get('area'))
-        vector_pop = (area / 1000000) * mosquito_susceptible_coef  # sq. meters to square km
+        vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
 
         vector_population = dict(
-            (i, {
+            (x, {
                 'subregion': subregion,
                 'range': random.uniform(0, 500),  # 500 meters or so
                 'lifetime': random.uniform(0, 14),  # in days
@@ -123,7 +133,7 @@ def build_vectors(in_subregion_data):
 
     # Infect the number of mosquitos set at beginning of script
         for x in vector_population:
-            if random.randint(0, N) == x:
+            if random.randint(0, vector_pop) == x:
                 vector_population[x]['infected'] = True
 
         subregions_list.append(vector_population)
@@ -220,7 +230,7 @@ def build_population_files(directory):
 
     while header_count == 0:
         lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
-            header_count = 1
+        header_count = 1
         writer(population_structure_file, lineOut)
 
     for dictionary in population:
@@ -229,6 +239,14 @@ def build_population_files(directory):
                 age = dictionary[i].get('age')
                 sex = dictionary[i].get('sex')
                 pregnant = dictionary[i].get('pregnant')
+                susceptible = dictionary[i].get('susceptible')
+                exposed = dictionary[i].get('exposed')
+                infected = dictionary[i].get('infected')
+                recovered = dictionary[i].get('recovered')
+                dayOfInf = dictionary[i].get('dayOfInf')
+                dayOfExp = dictionary[i].get('dayOfExp')
+                dayOfRec = dictionary[i].get('dayOfRec')
+                resistant = dictionary[i].get('resistant')
 
                 if sex == "Female":
                     if age >= 14 and age < 51:
@@ -239,6 +257,24 @@ def build_population_files(directory):
                 else:
                     lineOut = [subregion, i, age, sex, pregnant]
                 writer(population_structure_file, lineOut)
+
+                new_human = Humans(
+                    subregion=subregion,
+                    age=age,
+                    sex=sex,
+                    pregnant=pregnant,
+                    susceptible=susceptible,
+                    exposed=exposed,
+                    infected=infected,
+                    recovered=recovered,
+                    dayOfInf=dayOfInf,
+                    dayOfExp=dayOfExp,
+                    dayOfRec=dayOfRec,
+                    resistant=resistant
+                )
+
+                session.add(new_human)
+                session.commit()
 
             if run_count == 0:
                 print('\nBuilding population file: {0}% Complete'.format(
@@ -253,16 +289,20 @@ def build_population_files(directory):
     print("Building vector population")
     sleep(5)
 
-    vector = (build_vectors(mosquito_susceptible))
+    vector = (build_vectors())
     run_count = 0
     header_count = 0
 
     for dictionary in vector:
         for i in dictionary:
-            range = vector[i].get('range')
-            lifetime = vector[i].get('lifetime')
-            x = vector[i].get('x')
-            y = vector[i].get('y')
+            subregion = dictionary[i].get('subregion')
+            range = dictionary[i].get('range')
+            lifetime = dictionary[i].get('lifetime')
+            susceptible = dictionary[i].get('susceptible')
+            exposed = dictionary[i].get('exposed')
+            infected = dictionary[i].get('infected')
+            x = dictionary[i].get('x')
+            y = dictionary[i].get('y')
 
             if header_count == 0:
                 lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
@@ -271,6 +311,20 @@ def build_population_files(directory):
             else:
                 lineOut = [i, range, lifetime, x, y]
             writer(vector_structure_file, lineOut)
+
+            new_vector = Vectors(
+                subregion=subregion,
+                range=range,
+                lifetime=lifetime,
+                susceptible=susceptible,
+                exposed=exposed,
+                infected=infected,
+                x=x,
+                y=y
+            )
+
+            session.add(new_vector)
+            session.commit
 
             if run_count == 0:
                 print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
@@ -299,11 +353,19 @@ def simulation():
 
 def main():
     global working_directory
+    global session
 
     working_directory = input("Which directory should I place output data?: ")
 
     if not os.path.exists(working_directory):
         os.makedirs(working_directory)
+
+    db_name = 'Simulation.db'
+    db_path = os.path.join(working_directory, db_name)
+
+    engine = create_engine('sqlite:///simulation.db')
+    DBSession = sessionmaker(bind=engine)
+    session = DBSession()
 
     build_population_files(working_directory)
 

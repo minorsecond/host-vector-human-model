@@ -8,7 +8,7 @@ from sqlalchemy.ext.declarative import declarative_base
 engine = create_engine('sqlite:///simulation.db')
 Base = declarative_base()
 
-__all__ = ['Humans', 'Vectors', 'Subregions']
+__all__ = ['Humans', 'Vectors']
 
 
 class Humans(Base):
@@ -16,20 +16,21 @@ class Humans(Base):
     Table for Humans
     """
 
-    __tablename__ = "humans"
+    __tablename__ = "Humans"
     id = Column(Integer, primary_key=True)
     p_uuid = Column(String)
     subregion = Column(String)
     age = Column(Integer)
     sex = Column(String)
-    Pregnant = Column(Boolean)
-    Susceptible = Column(Boolean)
-    Infected = Column(Boolean)
-    Exposed = Column(Boolean)
+    pregnant = Column(String)
+    susceptible = Column(String)
+    infected = Column(String)
+    exposed = Column(String)
+    recovered = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
     dayOfRec = Column(Integer)
-    Resistant = Column(Boolean)
+    resistant = Column(String)
 
 
 class Vectors(Base):
@@ -42,9 +43,9 @@ class Vectors(Base):
     subregion = Column(String)
     range = Column(Float)
     lifetime = Column(Integer)
-    Susceptible = Column(Boolean)
-    Exposed = Column(Boolean)
-    Infected = Column(Boolean)
+    susceptible = Column(Boolean)
+    exposed = Column(Boolean)
+    infected = Column(Boolean)
     x = Column(String)
     y = Column(String)
 
