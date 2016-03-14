@@ -32,7 +32,8 @@ tau = .1  # chance a mosquito picks up zika from human
 # Human population parameters
 initial_susceptible = 750000
 initial_exposed = 0
-initial_infected = 1
+initial_infected = 9
+contact_rate = 5
 
 # Mosquito population parameters
 mosquito_susceptible_coef = 200  # mosquitos per square kilometer
@@ -94,6 +95,14 @@ def build_population():
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if random.randint(0, 100) < 4:
                         population[x]['pregnant'] = 'True'
+
+            if initial_infected > 0:
+                for i in range(initial_infected):
+                    if random.randint == population[x]:
+                        population[x]['susceptible'] = 'False'
+                        population[x]['exposed'] = 'True'
+                        population[x]['infected'] = 'False'
+                        population[x]['recovered'] = 'False'
 
         subregions_list.append(population)
 
@@ -216,25 +225,25 @@ def output_status(n, total):
     return (n / total) * 100
 
 
-def build_population_files(directory):
-    population_structure_file = os.path.join(directory, 'human_population.csv')
-    check_if_file_exists(population_structure_file)
-
-    vector_structure_file = os.path.join(directory, 'vector_population.csv')
-    check_if_file_exists(vector_structure_file)
-
-    pregnancy_eligible = 0
-    pregnant_count = 0
-
-    # Print population structure info
-    population = (build_population())
+def build_population_files(directory, tableToBuild):
 
     # while header_count == 0:
     #    lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
     #    header_count = 1
     #    writer(population_structure_file, lineOut)
 
-    for dictionary in population:
+    if tableToBuild == 'Humans':
+
+        population_structure_file = os.path.join(directory, 'human_population.csv')
+        check_if_file_exists(population_structure_file)
+
+        # Print population structure info
+        population = (build_population())
+
+        pregnancy_eligible = 0
+        pregnant_count = 0
+
+        for dictionary in population:
             for i in dictionary:
                 uniqueID = dictionary[i].get('uuid')
                 subregion = dictionary[i].get('subregion')
@@ -282,58 +291,63 @@ def build_population_files(directory):
 
                 session.add(new_human)
             session.commit()
-    del population[:]  # This list uses a ton of RAM. Get rid of it ASAP
+        del population[:]  # This list uses a ton of RAM. Get rid of it ASAP
 
-    # Print vector structure info
+    elif tableToBuild == 'Vectors':
 
-    print("Building vector population")
-    sleep(5)
+        vector_structure_file = os.path.join(directory, 'vector_population.csv')
+        check_if_file_exists(vector_structure_file)
 
-    vector = (build_vectors())
-    # header_count = 0
+        # Print vector structure info
 
-    for dictionary in vector:
-        for i in dictionary:
-            uniqueID = dictionary[i].get('uuid')
-            subregion = dictionary[i].get('subregion')
-            range = dictionary[i].get('range')
-            lifetime = dictionary[i].get('lifetime')
-            susceptible = dictionary[i].get('susceptible')
-            exposed = dictionary[i].get('exposed')
-            infected = dictionary[i].get('infected')
-            x = dictionary[i].get('x')
-            y = dictionary[i].get('y')
+        print("Building vector population")
+        sleep(5)
 
-            # if header_count == 0:
-            #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
-            #    header_count = 1
+        vector = (build_vectors())
+        # header_count = 0
 
-            # else:
-            # lineOut = [i, range, lifetime, x, y]
-            #writer(vector_structure_file, lineOut)
+        for dictionary in vector:
+            for i in dictionary:
+                uniqueID = dictionary[i].get('uuid')
+                subregion = dictionary[i].get('subregion')
+                range = dictionary[i].get('range')
+                lifetime = dictionary[i].get('lifetime')
+                susceptible = dictionary[i].get('susceptible')
+                exposed = dictionary[i].get('exposed')
+                infected = dictionary[i].get('infected')
+                x = dictionary[i].get('x')
+                y = dictionary[i].get('y')
 
-            new_vector = Vectors(
-                uniqueID=uniqueID,
-                subregion=subregion,
-                range=range,
-                lifetime=lifetime,
-                susceptible=susceptible,
-                exposed=exposed,
-                infected=infected,
-                x=x,
-                y=y
-            )
+                # if header_count == 0:
+                #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
+                #    header_count = 1
 
-            session.add(new_vector)
-    session.commit()
+                # else:
+                # lineOut = [i, range, lifetime, x, y]
+                # writer(vector_structure_file, lineOut)
 
-    # stats
+                new_vector = Vectors(
+                    uniqueID=uniqueID,
+                    subregion=subregion,
+                    range=range,
+                    lifetime=lifetime,
+                    susceptible=susceptible,
+                    exposed=exposed,
+                    infected=infected,
+                    x=x,
+                    y=y
+                )
 
-    if pregnant_count > 0:
-        pregnant_percentage = (pregnant_count / pregnancy_eligible) * 100
-    else:
-        pregnant_percentage = "\nNo pregnancies"
-    print("\nPercent of eligible women pregnant: {0}".format(pregnant_percentage))
+                session.add(new_vector)
+        session.commit()
+
+
+def euclidian():
+    """
+    Calculate distance between points on 2d surface
+    :return:
+    """
+
 
 
 def simulation():
@@ -341,36 +355,78 @@ def simulation():
     Simulation class
     :return:
     """
+    rowNum = 1
 
     number_humans = session.query(Humans).count()
     number_vectors = session.query(Vectors).count()
 
-    for i in range(days_to_run):  # TODO: Finish this next.
-        for d in range(number_humans):
-            row = session.query(Humans).filter_by(id=d)
-            for i in row:
-                print(i.age, i.sex)
+    for d in range(days_to_run):  # TODO: Finish this next.
+        for h in range(number_humans):
+            row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
+            for r in row:
+                i = 0
+                print("Processing row #{0}".format(rowNum))
+
+                while i < contact_rate - 1:  # Infect by contact rate per ady
+                    contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
+                    if contact.infected == 'True':
+                        input('Boom! Infected, fool.')
+                        row.update({"infected": 'True'}, synchronize_session='fetch')
+                    i += 1
+
+                rowNum += 1
+
+
+
 
                 # TODO: human within 'range' of mosquito - chance of infection
 
 
-def main():
+def setupDB():
     global working_directory
     global session
 
     working_directory = input("Which directory should I place output data?: ")
 
-    if not os.path.exists(working_directory):
-        os.makedirs(working_directory)
-
     engine = create_engine('sqlite:///simulation.db')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
-    simulation()
 
-    build_population_files(working_directory)
+def main_menu():
+    global working_directory
+    working_directory = False
+
+    while True:
+        """Main menu for program. Prompts user for function."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("Python Epidemiological Model\n\n"
+              "What would you like to do?\n"
+              "1. Build Population Data\n"
+              "2. Build Vector Data\n"
+              "3. Run Simulation\n"
+              "4. Quit\n")
+
+        answer = input(">>> ")
+
+        if answer.startswith('1'):
+            if not working_directory:
+                setupDB()
+            build_population_files(working_directory, 'Humans')
+
+        if answer.startswith('2'):
+            if not working_directory:
+                setupDB()
+            build_population_files(working_directory, 'Vectors')
+
+        if answer.startswith('3'):
+            if not working_directory:
+                setupDB()
+            simulation()
+
+        if answer.startswith('4'):
+            die()
 
 
 if __name__ == '__main__':
-    main()
+    main_menu()
