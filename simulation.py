@@ -53,7 +53,6 @@ def prompt(question):
 def build_population():
     """
     Builds population with parameters
-    :param N: Population size
     :return: Dict of dicts N size, with parameters
     """
 
@@ -98,17 +97,14 @@ def build_population():
 
         subregions_list.append(population)
 
-
     return subregions_list
 
 
 def build_vectors():
     """
     Builds vector population
-    :param N: Number of vectors
     :return: Dict of dicts N size, with parameters
     """
-    infected_mosquitos = 0
     subregions_list = []
 
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
@@ -139,6 +135,8 @@ def build_vectors():
         for x in vector_population:
             if np.random.uniform(0, 1) < .01:
                 vector_population[x]['infected'] = 'True'
+                vector_population[x]['susceptible'] = 'False'
+                vector_population[x]['exposed'] = 'False'
 
         subregions_list.append(vector_population)
 
@@ -169,6 +167,7 @@ def sub_regions(filename):
         )
 
     return subregion
+
 
 def writer(filename, line):
     """
@@ -214,7 +213,7 @@ def output_status(n, total):
     :return:
     """
 
-    return ((n / total) * 100)
+    return (n / total) * 100
 
 
 def build_population_files(directory):
@@ -226,8 +225,6 @@ def build_population_files(directory):
 
     pregnancy_eligible = 0
     pregnant_count = 0
-    header_count = 0
-    run_count = 0
 
     # Print population structure info
     population = (build_population())
@@ -263,7 +260,7 @@ def build_population_files(directory):
 
                 # else:
                 #    lineOut = [subregion, i, age, sex, pregnant]
-                #writer(population_structure_file, lineOut)
+                # writer(population_structure_file, lineOut)
 
                 new_human = Humans(
                     uniqueID=uniqueID,
@@ -293,8 +290,7 @@ def build_population_files(directory):
     sleep(5)
 
     vector = (build_vectors())
-    run_count = 0
-    #header_count = 0
+    # header_count = 0
 
     for dictionary in vector:
         for i in dictionary:
@@ -340,13 +336,20 @@ def build_population_files(directory):
     print("\nPercent of eligible women pregnant: {0}".format(pregnant_percentage))
 
 
-def simulation():
+class simulation():
     """
-
+    Simulation class
     :return:
     """
 
-    day_of_infection = 0
+    def day_step(self):
+        """
+        Step each day and update stats
+        :return:
+        """
+        day_of_infection = 0
+
+        # TODO: human within 'range' of mosquito - chance of infection
 
 
 def main():
@@ -357,9 +360,6 @@ def main():
 
     if not os.path.exists(working_directory):
         os.makedirs(working_directory)
-
-    db_name = 'Simulation.db'
-    db_path = os.path.join(working_directory, db_name)
 
     engine = create_engine('sqlite:///simulation.db')
     DBSession = sessionmaker(bind=engine)
