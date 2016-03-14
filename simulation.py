@@ -54,7 +54,7 @@ def build_population(N):
 
     for x in population:
         if population[x].get('sex') == "Female":
-            if population[x].get('age') >= 15:
+            if population[x].get('age') >= 15 and population[x].get('age') < 51:
                 if random.randint(0, 100) < 4:
                     population[x]['pregnant'] = 'True'
 
@@ -98,12 +98,12 @@ def main():
         pregnant = population[i].get('pregnant')
 
         if sex == "Female":
-            if age >= 14:
+            if age >= 14 and age < 51:
                 pregnancy_eligible += 1
         if pregnant == 'True':
             pregnant_count += 1
 
-        print("Age: {0} Sex: {1} Pregnancy: {2}".format(age, sex, pregnant))
+        print("Individual# {0} | Age: {1} | Sex: {2} | Pregnancy Status: {3}".format(i, age, sex, pregnant))
 
     if pregnant_count > 0:
         pregnant_percentage = (pregnant_count / pregnancy_eligible) * 100
