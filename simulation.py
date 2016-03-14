@@ -62,7 +62,7 @@ def build_population():
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     sub_regions_dict = sub_regions(in_subregion_data)
 
-    print('Building population for {0} sub-regions. This whill take a second..'.format(len(sub_regions_dict) - 1))
+    print('Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
     for i in sub_regions_dict:
         subregion = i
@@ -70,7 +70,7 @@ def build_population():
 
         population = dict(
             (x, {
-                'uuid': uuid(),
+                'uuid': str(uuid()),
                 'subregion': subregion,
                 'age': random.randint(0, 99),
                 'sex': random.choice(['Male', 'Female']),
@@ -98,6 +98,7 @@ def build_population():
 
         subregions_list.append(population)
 
+
     return subregions_list
 
 
@@ -122,7 +123,7 @@ def build_vectors():
 
         vector_population = dict(
             (x, {
-                'uuid': uuid(),
+                'uuid': str(uuid()),
                 'subregion': subregion,
                 'range': random.uniform(0, 500),  # 500 meters or so
                 'lifetime': random.uniform(0, 14),  # in days
@@ -137,7 +138,7 @@ def build_vectors():
     # Infect the number of mosquitos set at beginning of script
         for x in vector_population:
             if np.random.uniform(0, 1) < .01:
-                vector_population[x]['infected'] = True
+                vector_population[x]['infected'] = 'True'
 
         subregions_list.append(vector_population)
 
@@ -283,15 +284,8 @@ def build_population_files(directory):
                 )
 
                 session.add(new_human)
-
-            if run_count == 0:
-                print('\nBuilding population file: {0}% Complete'.format(
-                    round(output_status(run_count, len(dictionary)))))
-
-            run_count += 1
-            if run_count % (len(dictionary) / 100) == 0:
-                print('Building population file: {0}% Complete'.format(round(output_status(run_count, len(dictionary)))))
-    session.commit()
+            session.commit()
+    del population[:]  # This list uses a ton of RAM. Get rid of it ASAP
 
     # Print vector structure info
 
@@ -304,7 +298,7 @@ def build_population_files(directory):
 
     for dictionary in vector:
         for i in dictionary:
-            uniqueID = uniqueID,
+            uniqueID = dictionary[i].get('uuid')
             subregion = dictionary[i].get('subregion')
             range = dictionary[i].get('range')
             lifetime = dictionary[i].get('lifetime')
@@ -335,13 +329,6 @@ def build_population_files(directory):
             )
 
             session.add(new_vector)
-
-            if run_count == 0:
-                print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(population)))))
-
-            run_count += 1
-            if run_count % (len(vector) / 100) == 0:
-                print('Building vector file: {0}% Complete'.format(round(output_status(run_count, len(vector)))))
     session.commit()
 
     # stats
