@@ -336,20 +336,22 @@ def build_population_files(directory):
     print("\nPercent of eligible women pregnant: {0}".format(pregnant_percentage))
 
 
-class simulation():
+def simulation():
     """
     Simulation class
     :return:
     """
 
-    def day_step(self):
-        """
-        Step each day and update stats
-        :return:
-        """
-        day_of_infection = 0
+    number_humans = session.query(Humans).count()
+    number_vectors = session.query(Vectors).count()
 
-        # TODO: human within 'range' of mosquito - chance of infection
+    for i in range(days_to_run):  # TODO: Finish this next.
+        for d in range(number_humans):
+            row = session.query(Humans).filter_by(id=d)
+            for i in row:
+                print(i.age, i.sex)
+
+                # TODO: human within 'range' of mosquito - chance of infection
 
 
 def main():
@@ -364,6 +366,8 @@ def main():
     engine = create_engine('sqlite:///simulation.db')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
+
+    simulation()
 
     build_population_files(working_directory)
 
