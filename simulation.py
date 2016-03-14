@@ -1,5 +1,4 @@
-
-
+import csv
 import random
 
 # Simulation parameters
@@ -48,6 +47,8 @@ def build_population(N):
             'dayOfRec': 0,
             'recState': 0,
             'resistant': False,
+            'x': random.uniform(689141, 737293),  # Extents for Tarrant county, TX
+            'y': random.uniform(2098719, 2147597)
 
         }) for i in range(N)
     )
@@ -87,15 +88,26 @@ def build_vectors(N):
     return vector_population
 
 
+def writer(filename, line):
+    with open(filename, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        writer.writerow(line)
+
+
 def main():
+    population_structure_file = input("Population File Output CSV: ")
+
     pregnancy_eligible = 0
     pregnant_count = 0
+    header_count = 0
 
     population = (build_population(initial_susceptible))
     for i in population:
         age = population[i].get('age')
         sex = population[i].get('sex')
         pregnant = population[i].get('pregnant')
+        x = population[i].get('x')
+        y = population[i].get('y')
 
         if sex == "Female":
             if age >= 14 and age < 51:
@@ -103,7 +115,13 @@ def main():
         if pregnant == 'True':
             pregnant_count += 1
 
-        print("Individual# {0} | Age: {1} | Sex: {2} | Pregnancy Status: {3}".format(i, age, sex, pregnant))
+        if header_count == 0:
+            lineOut = ['Individual ID', 'Age', 'Sex', 'Pregnancy Status', 'x', 'y']
+            header_count = 1
+
+        else:
+            lineOut = [i, age, sex, pregnant, x, y]
+        writer(population_structure_file, lineOut)
 
     if pregnant_count > 0:
         pregnant_percentage = (pregnant_count / pregnancy_eligible) * 100
@@ -119,13 +137,6 @@ def simulation():
     """
 
     day_of_infection = 0
-
-
-def csv_writer():
-    """
-    Writes out model values: Median age of population, number of pregnant, etc..
-    :return:
-    """
 
 
 if __name__ == '__main__':
