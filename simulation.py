@@ -17,7 +17,7 @@ zeta = .1  # blood transfusion
 tau = .1  # chance a mosquito picks up zika from human
 
 # Human population parameters
-initial_susceptible = 9999999
+initial_susceptible = 750000
 initial_exposed = 0
 initial_infected = 1
 
@@ -37,16 +37,29 @@ def build_population(N):
     population = dict(
         (i, {
             'age': random.randint(0,99),
-            'sex': random.randint(0,1),
+            'sex': random.choice(['Male', 'Female']),
             'pregnant': 'False',
             'susceptible': 'True',
             'infected': 'False',
             'exposed': 'True',
             'recovered': 'False',
+            'dayOfInf': 0,
+            'dayOfExp': 0,
+            'dayOfRec': 0,
+            'recState': 0,
+            'resistant': False,
+
         }) for i in range(N)
     )
 
+    for x in population:
+        if population[x].get('sex') == "Female":
+            if population[x].get('age') >= 15:
+                if random.randint(0, 100) < 4:
+                    population[x]['pregnant'] = 'True'
+
     return population
+
 
 def build_vectors(N):
     """
@@ -75,17 +88,45 @@ def build_vectors(N):
 
 
 def main():
-    population = (build_population(999))
+    pregnancy_eligible = 0
+    pregnant_count = 0
+
+    population = (build_population(initial_susceptible))
     for i in population:
         age = population[i].get('age')
-        _sex = population[i].get('sex')
+        sex = population[i].get('sex')
+        pregnant = population[i].get('pregnant')
 
-        if _sex == 0:
-            sex = 'male'
-        else:
-            sex = 'female'
+        if sex == "Female":
+            if age >= 14:
+                pregnancy_eligible += 1
+        if pregnant == 'True':
+            pregnant_count += 1
 
-        print("Age: {0} Sex: {1}".format(age, sex))
+        print("Age: {0} Sex: {1} Pregnancy: {2}".format(age, sex, pregnant))
+
+    if pregnant_count > 0:
+        pregnant_percentage = (pregnant_count / pregnancy_eligible) * 100
+    else:
+        pregnant_percentage = "No pregnancies"
+    print("Percent of eligible women pregnant: {0}".format(pregnant_percentage))
+
+
+def simulation():
+    """
+
+    :return:
+    """
+
+    day_of_infection = 0
+
+
+def csv_writer():
+    """
+    Writes out model values: Median age of population, number of pregnant, etc..
+    :return:
+    """
+
 
 if __name__ == '__main__':
     main()
