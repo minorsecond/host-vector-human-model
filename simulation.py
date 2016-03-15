@@ -3,6 +3,7 @@ A SEIR simulation that uses SQLite and CSV Census files to define population par
 """
 
 # TODO: Add option to load previously-created tables into tool.
+# TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
 
 import csv
 import os.path
@@ -285,29 +286,28 @@ def build_population_files(directory, tableToBuild):
 
                 session.add(new_human)
             session.commit()
-        del population[:]  # This list uses a ton of RAM. Get rid of it ASAP
 
         # This is bad - it has very high overhead.
         if initial_infected > 0:  # Create the initial infections
             initial_infection_counter = 0
-            rows_scanned = 0
+            row_count = 1
             for i in range(initial_infected):
-                infectList.append(random.randint(0, len(population)))
+                infectList.append(random.randint(1, len(population)))
+            del population[:]
             print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
             for i in infectList:
-                print(i)
-            while initial_infection_counter < initial_infected:
-                for h in infectList:  # For each ID in the infected list,
-                    row = session.query(Humans).filter_by(id=h)  # select a human from the table whose ID matches
-                    for r in row:
-                        print("Scanned row {0} of {1}".format(r, session.query(Humans).count()))
-                        if r.id in infectList:  # This might be redundant.
-                            row.update({"susceptible": 'False'}, synchronize_session='fetch')
-                            row.update({"exposed": 'False'}, synchronize_session='fetch')
-                            row.update({"infected": 'True'}, synchronize_session='fetch')
-                            row.update({"recovered": 'False'}, synchronize_session='fetch')
-                            initial_infection_counter += 1
-                            input("You have an infection! Number {0}".format(initial_infection_counter))
+                while initial_infection_counter < initial_infected:
+                    for h in infectList:  # For each ID in the infected list,
+                        row = session.query(Humans).filter_by(id=h)  # select a human from the table whose ID matches
+                        for r in row:
+                            print("Scanned row {0} of {1}".format(r, session.query(Humans).count()))
+                            if r.id in infectList:  # This might be redundant.
+                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                row.update({"exposed": 'False'}, synchronize_session='fetch')
+                                row.update({"infected": 'True'}, synchronize_session='fetch')
+                                row.update({"recovered": 'False'}, synchronize_session='fetch')
+                                initial_infection_counter += 1
+                            row_count += 1
 
     elif tableToBuild == 'Vectors':
 
