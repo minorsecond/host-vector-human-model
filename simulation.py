@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 from db import Humans, Vectors
 
 # Simulation parameters
-days_to_run = 999
+days_to_run = 5
 random.seed(5)
 
 # Epidemic parameters
@@ -43,7 +43,6 @@ mosquito_susceptible_coef = 200  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 
-global session
 
 def prompt(question):
     reply = str(input(question + ' (y/n): ')).lower().strip()
@@ -65,7 +64,7 @@ def build_population():
 
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     sub_regions_dict = sub_regions(in_subregion_data)
-
+    clear_screen()
     print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
     for i in sub_regions_dict:
@@ -115,6 +114,7 @@ def build_vectors():
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     sub_regions_dict = sub_regions(in_subregion_data)
 
+    clear_screen()
     print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
 
     for i in sub_regions_dict:
@@ -223,6 +223,7 @@ def output_status(n, total):
 
 
 def build_population_files(directory, tableToBuild):
+    global session
 
     # while header_count == 0:
     #    lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
@@ -232,132 +233,138 @@ def build_population_files(directory, tableToBuild):
     idList = []
     infectList = []
 
-    if tableToBuild == 'Humans':
+    try:
 
-        population_structure_file = os.path.join(directory, 'human_population.csv')
-        check_if_file_exists(population_structure_file)
+        if tableToBuild == 'Humans':
 
-        # Print population structure info
-        population = (build_population())
+            population_structure_file = os.path.join(directory, 'human_population.csv')
+            check_if_file_exists(population_structure_file)
 
-        pregnancy_eligible = 0
-        pregnant_count = 0
+            # Print population structure info
+            population = (build_population())
 
-        for dictionary in population:
-            for i in dictionary:
-                uniqueID = dictionary[i].get('uuid')
-                subregion = dictionary[i].get('subregion')
-                age = dictionary[i].get('age')
-                sex = dictionary[i].get('sex')
-                pregnant = dictionary[i].get('pregnant')
-                susceptible = dictionary[i].get('susceptible')
-                exposed = dictionary[i].get('exposed')
-                infected = dictionary[i].get('infected')
-                recovered = dictionary[i].get('recovered')
-                dayOfInf = dictionary[i].get('dayOfInf')
-                dayOfExp = dictionary[i].get('dayOfExp')
-                dayOfRec = dictionary[i].get('dayOfRec')
-                resistant = dictionary[i].get('resistant')
-                x = dictionary[i].get('x')
-                y = dictionary[i].get('y')
+            pregnancy_eligible = 0
+            pregnant_count = 0
 
-                if sex == "Female":
-                    if age >= 14 and age < 51:
-                        pregnancy_eligible += 1
-                if pregnant == 'True':
-                    pregnant_count += 1
+            for dictionary in population:
+                for i in dictionary:
+                    uniqueID = dictionary[i].get('uuid')
+                    subregion = dictionary[i].get('subregion')
+                    age = dictionary[i].get('age')
+                    sex = dictionary[i].get('sex')
+                    pregnant = dictionary[i].get('pregnant')
+                    susceptible = dictionary[i].get('susceptible')
+                    exposed = dictionary[i].get('exposed')
+                    infected = dictionary[i].get('infected')
+                    recovered = dictionary[i].get('recovered')
+                    dayOfInf = dictionary[i].get('dayOfInf')
+                    dayOfExp = dictionary[i].get('dayOfExp')
+                    dayOfRec = dictionary[i].get('dayOfRec')
+                    resistant = dictionary[i].get('resistant')
+                    x = dictionary[i].get('x')
+                    y = dictionary[i].get('y')
 
-                new_human = Humans(
-                    uniqueID=uniqueID,
-                    subregion=subregion,
-                    age=age,
-                    sex=sex,
-                    pregnant=pregnant,
-                    susceptible=susceptible,
-                    exposed=exposed,
-                    infected=infected,
-                    recovered=recovered,
-                    dayOfInf=dayOfInf,
-                    dayOfExp=dayOfExp,
-                    dayOfRec=dayOfRec,
-                    resistant=resistant,
-                    x=x,
-                    y=y
-                )
+                    if sex == "Female":
+                        if age >= 14 and age < 51:
+                            pregnancy_eligible += 1
+                    if pregnant == 'True':
+                        pregnant_count += 1
 
-                session.add(new_human)
+                    new_human = Humans(
+                        uniqueID=uniqueID,
+                        subregion=subregion,
+                        age=age,
+                        sex=sex,
+                        pregnant=pregnant,
+                        susceptible=susceptible,
+                        exposed=exposed,
+                        infected=infected,
+                        recovered=recovered,
+                        dayOfInf=dayOfInf,
+                        dayOfExp=dayOfExp,
+                        dayOfRec=dayOfRec,
+                        resistant=resistant,
+                        x=x,
+                        y=y
+                    )
+
+                    session.add(new_human)
+                session.commit()
+
+            # This is bad - it has very high overhead.
+            if initial_infected > 0:  # Create the initial infections
+                initial_infection_counter = 0
+                row_count = 1
+                for i in range(initial_infected):
+                    infectList.append(random.randint(1, len(population)))
+                del population[:]
+                clear_screen()
+                print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
+                for i in infectList:
+                    while initial_infection_counter < initial_infected:
+                        for h in infectList:  # For each ID in the infected list,
+                            row = session.query(Humans).filter_by(
+                                id=h)  # select a human from the table whose ID matches
+                            for r in row:
+                                print("Scanned row {0} of {1}".format(row_count, session.query(Humans).count()))
+                                if r.id in infectList:  # This might be redundant.
+                                    row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                    row.update({"exposed": 'False'}, synchronize_session='fetch')
+                                    row.update({"infected": 'True'}, synchronize_session='fetch')
+                                    row.update({"recovered": 'False'}, synchronize_session='fetch')
+                                    initial_infection_counter += 1
+                                row_count += 1
+
+        elif tableToBuild == 'Vectors':
+
+            vector_structure_file = os.path.join(directory, 'vector_population.csv')
+            check_if_file_exists(vector_structure_file)
+
+            clear_screen()
+            print("Building vector population")
+            sleep(5)
+
+            vector = (build_vectors())
+            # header_count = 0
+
+            for dictionary in vector:
+                for i in dictionary:
+                    uniqueID = dictionary[i].get('uuid')
+                    subregion = dictionary[i].get('subregion')
+                    range_ = dictionary[i].get('range')
+                    lifetime = dictionary[i].get('lifetime')
+                    susceptible = dictionary[i].get('susceptible')
+                    exposed = dictionary[i].get('exposed')
+                    infected = dictionary[i].get('infected')
+                    x = dictionary[i].get('x')
+                    y = dictionary[i].get('y')
+
+                    # if header_count == 0:
+                    #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
+                    #    header_count = 1
+
+                    # else:
+                    # lineOut = [i, range, lifetime, x, y]
+                    # writer(vector_structure_file, lineOut)
+
+                    new_vector = Vectors(
+                        uniqueID=uniqueID,
+                        subregion=subregion,
+                        range=range_,
+                        lifetime=lifetime,
+                        susceptible=susceptible,
+                        exposed=exposed,
+                        infected=infected,
+                        x=x,
+                        y=y
+                    )
+
+                    session.add(new_vector)
             session.commit()
-
-        # This is bad - it has very high overhead.
-        if initial_infected > 0:  # Create the initial infections
-            initial_infection_counter = 0
-            row_count = 1
-            for i in range(initial_infected):
-                infectList.append(random.randint(1, len(population)))
-            del population[:]
-            print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
-            for i in infectList:
-                while initial_infection_counter < initial_infected:
-                    for h in infectList:  # For each ID in the infected list,
-                        row = session.query(Humans).filter_by(id=h)  # select a human from the table whose ID matches
-                        for r in row:
-                            print("Scanned row {0} of {1}".format(row_count, session.query(Humans).count()))
-                            if r.id in infectList:  # This might be redundant.
-                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
-                                row.update({"exposed": 'False'}, synchronize_session='fetch')
-                                row.update({"infected": 'True'}, synchronize_session='fetch')
-                                row.update({"recovered": 'False'}, synchronize_session='fetch')
-                                initial_infection_counter += 1
-                            row_count += 1
-
-    elif tableToBuild == 'Vectors':
-
-        vector_structure_file = os.path.join(directory, 'vector_population.csv')
-        check_if_file_exists(vector_structure_file)
-
-        # Print vector structure info
-
-        print("Building vector population")
-        sleep(5)
-
-        vector = (build_vectors())
-        # header_count = 0
-
-        for dictionary in vector:
-            for i in dictionary:
-                uniqueID = dictionary[i].get('uuid')
-                subregion = dictionary[i].get('subregion')
-                range_ = dictionary[i].get('range')
-                lifetime = dictionary[i].get('lifetime')
-                susceptible = dictionary[i].get('susceptible')
-                exposed = dictionary[i].get('exposed')
-                infected = dictionary[i].get('infected')
-                x = dictionary[i].get('x')
-                y = dictionary[i].get('y')
-
-                # if header_count == 0:
-                #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
-                #    header_count = 1
-
-                # else:
-                # lineOut = [i, range, lifetime, x, y]
-                # writer(vector_structure_file, lineOut)
-
-                new_vector = Vectors(
-                    uniqueID=uniqueID,
-                    subregion=subregion,
-                    range=range_,
-                    lifetime=lifetime,
-                    susceptible=susceptible,
-                    exposed=exposed,
-                    infected=infected,
-                    x=x,
-                    y=y
-                )
-
-                session.add(new_vector)
-        session.commit()
-        del vector[:]
+            del vector[:]
+    except KeyboardInterrupt:
+        input("You interrupted me! Press enter to return to main menu.")
+        main_menu()
 
 def euclidian():
     """
@@ -373,39 +380,64 @@ def simulation():
     :return:
     """
     rowNum = 1
+    day = 1
+    syms = ['\\', '|', '/', '-']
+    bs = '\b'
 
     number_humans = session.query(Humans).count()
     number_vectors = session.query(Vectors).count()
 
-    for d in range(days_to_run):  # TODO: Finish this next.
-        for h in range(number_humans):
-            row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
-            for r in row:
-                i = 0
-                print("Processing row #{0}".format(rowNum))
+    clear_screen()
 
-                while i < contact_rate - 1:  # Infect by contact rate per ady
-                    contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
-                    if contact.exposed == 'True':
-                        input('Boom! exposed, fool.')
-                        row.update({"exposed": 'True'}, synchronize_session='fetch')
-                    i += 1
-                rowNum += 1
+    print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
+
+    try:
+        for d in range(days_to_run):  # TODO: Finish this next.
+            for h in range(number_humans):
+                row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
+                for r in row:
+                    i = 0
+                    while i < contact_rate - 1:  # Infect by contact rate per ady
+                        contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
+                        if contact.exposed == 'True':
+                            input('Boom! exposed, fool.')
+                            row.update({"exposed": 'True'}, synchronize_session='fetch')
+                        i += 1
+                    rowNum += 1
+            day += 1
+        session.commit()
+
+        # for human_a in session.query(Humans).yield_per(1000):
+        #    i = 0
+        #    while i < contact_rate:
+        #        for human_b in session.query(Humans).yield_per(1000):
+        #            if human_a.id != human_b.id:
+        #                #print("Processing row #{0} of {1}".format(rowNum, number_humans * contact_rate * days_to_run))
+        #                if human_b.exposed == 'True':
+        #                    input("BREAK - THE INFECTION CODE WORKED")
+        #                    human_a.update({"exposed": 'True'}, synchronize_session='fetch')
+        #                rowNum += 1
+        #        i += 1
 
 
-
-
-                # TODO: human within 'range' of mosquito - chance of infection
+        # TODO: human within 'range' of mosquito - chance of infection
+    except KeyboardInterrupt:
+        clear_screen()
+        input("You interrupted me. Going back to main menu.")
+        main_menu()
 
 
 def setupDB():
     global working_directory
+    global session
 
     working_directory = input("Path to subregions.csv: ")
 
     engine = create_engine('sqlite:///simulation.epi')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
+
+    return session
 
 
 def read_db():
@@ -414,20 +446,33 @@ def read_db():
     :return:
     """
 
-    dbPath = 'simulation.epi'
-    engine = create_engine('sqlite:///%s' % dbPath, echo=False)
+    try:
+        dbPath = 'simulation.epi'
+        engine = create_engine('sqlite:///%s' % dbPath, echo=False)
 
-    metadata = MetaData(engine)
-    population = Table('Humans', metadata, autoload=True)
-    vectors = Table('Vectors', metadata, autoload=True)
+        metadata = MetaData(engine)
+        population = Table('Humans', metadata, autoload=True)
+        vectors = Table('Vectors', metadata, autoload=True)
 
-    # mapper(Humans, population)
-    # mapper(Vectors, vectors)
+        # mapper(Humans, population)
+        # mapper(Vectors, vectors)
 
-    Session = sessionmaker(bind=engine)
-    session = Session()
+        Session = sessionmaker(bind=engine)
+        session = Session()
 
-    return session
+        clear_screen()
+        input("\n\nSuccessfully loaded database. Press enter to return to the main menu.")
+
+        return session
+    except:
+        clear_screen()
+        input("Could not load database. Make sure the database is called 'simulation.epi.' Unfortunately, you may need"
+              "to rebuild it. Press enter to return to the main menu.")
+        main_menu()
+
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def main_menu():
@@ -435,35 +480,42 @@ def main_menu():
     global session
 
     while True:
-        """Main menu for program. Prompts user for function."""
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print("Python Epidemiological Model\n\n"
-              "What would you like to do?\n"
-              "1. Build Population Data\n"
-              "2. Build Vector Data\n"
-              "3. Load Existing Tables\n"
-              "4. Run Simulation\n"
-              "5. Quit\n")
+        try:
+            """Main menu for program. Prompts user for function."""
+            clear_screen()
+            print("Python Epidemiological Model\n\n"
+                  "What would you like to do?\n"
+                  "1. Build Population Data\n"
+                  "2. Build Vector Data\n"
+                  "3. Load Existing Tables\n"
+                  "4. Run Simulation\n"
+                  "5. Quit\n")
 
-        answer = input(">>> ")
+            answer = input(">>> ")
 
-        if answer.startswith('1'):
-            setupDB()
-            build_population_files(working_directory, 'Humans')
+            if answer.startswith('1'):
+                setupDB()
+                build_population_files(working_directory, 'Humans')
 
-        if answer.startswith('2'):
-            setupDB()
-            build_population_files(working_directory, 'Vectors')
+            if answer.startswith('2'):
+                setupDB()
+                build_population_files(working_directory, 'Vectors')
 
-        if answer.startswith('3'):
-            session = read_db()
+            if answer.startswith('3'):
+                session = read_db()
 
-        if answer.startswith('4'):
-            setupDB()
-            simulation()
+            if answer.startswith('4'):
+                try:
+                    simulation()
+                except NameError:
+                    clear_screen()
+                    input("Database not loaded. Press enter to return to the main menu.")
+                    main_menu()
+            if answer.startswith('5'):
+                die()
 
-        if answer.startswith('5'):
-            die()
+        except KeyboardInterrupt:
+            main_menu()
 
 
 if __name__ == '__main__':
