@@ -13,7 +13,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors
@@ -43,6 +43,7 @@ mosquito_susceptible_coef = 200  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 
+global session
 
 def prompt(question):
     reply = str(input(question + ' (y/n): ')).lower().strip()
@@ -300,7 +301,7 @@ def build_population_files(directory, tableToBuild):
                     for h in infectList:  # For each ID in the infected list,
                         row = session.query(Humans).filter_by(id=h)  # select a human from the table whose ID matches
                         for r in row:
-                            print("Scanned row {0} of {1}".format(r, session.query(Humans).count()))
+                            print("Scanned row {0} of {1}".format(row_count, session.query(Humans).count()))
                             if r.id in infectList:  # This might be redundant.
                                 row.update({"susceptible": 'False'}, synchronize_session='fetch')
                                 row.update({"exposed": 'False'}, synchronize_session='fetch')
@@ -385,12 +386,10 @@ def simulation():
 
                 while i < contact_rate - 1:  # Infect by contact rate per ady
                     contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
-                    print(contact.exposed)
                     if contact.exposed == 'True':
                         input('Boom! exposed, fool.')
                         row.update({"exposed": 'True'}, synchronize_session='fetch')
                     i += 1
-
                 rowNum += 1
 
 
@@ -401,17 +400,39 @@ def simulation():
 
 def setupDB():
     global working_directory
-    global session
 
-    working_directory = input("Which directory should I place output data?: ")
+    working_directory = input("Path to subregions.csv: ")
 
     engine = create_engine('sqlite:///simulation.epi')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
 
+def read_db():
+    """
+    Reads existing .epi db
+    :return:
+    """
+
+    dbPath = 'simulation.epi'
+    engine = create_engine('sqlite:///%s' % dbPath, echo=False)
+
+    metadata = MetaData(engine)
+    population = Table('Humans', metadata, autoload=True)
+    vectors = Table('Vectors', metadata, autoload=True)
+
+    # mapper(Humans, population)
+    # mapper(Vectors, vectors)
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    return session
+
+
 def main_menu():
     global working_directory
+    global session
 
     while True:
         """Main menu for program. Prompts user for function."""
@@ -420,8 +441,9 @@ def main_menu():
               "What would you like to do?\n"
               "1. Build Population Data\n"
               "2. Build Vector Data\n"
-              "3. Run Simulation\n"
-              "4. Quit\n")
+              "3. Load Existing Tables\n"
+              "4. Run Simulation\n"
+              "5. Quit\n")
 
         answer = input(">>> ")
 
@@ -434,10 +456,13 @@ def main_menu():
             build_population_files(working_directory, 'Vectors')
 
         if answer.startswith('3'):
+            session = read_db()
+
+        if answer.startswith('4'):
             setupDB()
             simulation()
 
-        if answer.startswith('4'):
+        if answer.startswith('5'):
             die()
 
 
