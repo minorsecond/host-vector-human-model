@@ -2,6 +2,8 @@
 A SEIR simulation that uses SQLite and CSV Census files to define population paramaters
 """
 
+# TODO: Add option to load previously-created tables into tool.
+
 import csv
 import os.path
 import random
@@ -62,7 +64,7 @@ def build_population():
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     sub_regions_dict = sub_regions(in_subregion_data)
 
-    print('Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
+    print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
     for i in sub_regions_dict:
         subregion = i
@@ -77,7 +79,7 @@ def build_population():
                 'pregnant': 'False',
                 'susceptible': 'True',
                 'infected': 'False',
-                'exposed': 'True',
+                'exposed': 'False',
                 'recovered': 'False',
                 'dayOfInf': 0,
                 'dayOfExp': 0,
@@ -95,14 +97,6 @@ def build_population():
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if random.randint(0, 100) < 4:
                         population[x]['pregnant'] = 'True'
-
-            if initial_infected > 0:
-                for i in range(initial_infected):
-                    if random.randint == population[x]:
-                        population[x]['susceptible'] = 'False'
-                        population[x]['exposed'] = 'True'
-                        population[x]['infected'] = 'False'
-                        population[x]['recovered'] = 'False'
 
         subregions_list.append(population)
 
@@ -148,6 +142,7 @@ def build_vectors():
                 vector_population[x]['exposed'] = 'False'
 
         subregions_list.append(vector_population)
+
 
     return subregions_list
 
@@ -232,6 +227,9 @@ def build_population_files(directory, tableToBuild):
     #    header_count = 1
     #    writer(population_structure_file, lineOut)
 
+    idList = []
+    infectList = []
+
     if tableToBuild == 'Humans':
 
         population_structure_file = os.path.join(directory, 'human_population.csv')
@@ -267,10 +265,6 @@ def build_population_files(directory, tableToBuild):
                 if pregnant == 'True':
                     pregnant_count += 1
 
-                # else:
-                #    lineOut = [subregion, i, age, sex, pregnant]
-                # writer(population_structure_file, lineOut)
-
                 new_human = Humans(
                     uniqueID=uniqueID,
                     subregion=subregion,
@@ -293,6 +287,28 @@ def build_population_files(directory, tableToBuild):
             session.commit()
         del population[:]  # This list uses a ton of RAM. Get rid of it ASAP
 
+        # This is bad - it has very high overhead.
+        if initial_infected > 0:  # Create the initial infections
+            initial_infection_counter = 0
+            rows_scanned = 0
+            for i in range(initial_infected):
+                infectList.append(random.randint(0, len(population)))
+            print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
+            for i in infectList:
+                print(i)
+            while initial_infection_counter < initial_infected:
+                for h in infectList:  # For each ID in the infected list,
+                    row = session.query(Humans).filter_by(id=h)  # select a human from the table whose ID matches
+                    for r in row:
+                        print("Scanned row {0} of {1}".format(r, session.query(Humans).count()))
+                        if r.id in infectList:  # This might be redundant.
+                            row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                            row.update({"exposed": 'False'}, synchronize_session='fetch')
+                            row.update({"infected": 'True'}, synchronize_session='fetch')
+                            row.update({"recovered": 'False'}, synchronize_session='fetch')
+                            initial_infection_counter += 1
+                            input("You have an infection! Number {0}".format(initial_infection_counter))
+
     elif tableToBuild == 'Vectors':
 
         vector_structure_file = os.path.join(directory, 'vector_population.csv')
@@ -310,7 +326,7 @@ def build_population_files(directory, tableToBuild):
             for i in dictionary:
                 uniqueID = dictionary[i].get('uuid')
                 subregion = dictionary[i].get('subregion')
-                range = dictionary[i].get('range')
+                range_ = dictionary[i].get('range')
                 lifetime = dictionary[i].get('lifetime')
                 susceptible = dictionary[i].get('susceptible')
                 exposed = dictionary[i].get('exposed')
@@ -329,7 +345,7 @@ def build_population_files(directory, tableToBuild):
                 new_vector = Vectors(
                     uniqueID=uniqueID,
                     subregion=subregion,
-                    range=range,
+                    range=range_,
                     lifetime=lifetime,
                     susceptible=susceptible,
                     exposed=exposed,
@@ -340,7 +356,7 @@ def build_population_files(directory, tableToBuild):
 
                 session.add(new_vector)
         session.commit()
-
+        del vector[:]
 
 def euclidian():
     """
@@ -369,9 +385,10 @@ def simulation():
 
                 while i < contact_rate - 1:  # Infect by contact rate per ady
                     contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
-                    if contact.infected == 'True':
-                        input('Boom! Infected, fool.')
-                        row.update({"infected": 'True'}, synchronize_session='fetch')
+                    print(contact.exposed)
+                    if contact.exposed == 'True':
+                        input('Boom! exposed, fool.')
+                        row.update({"exposed": 'True'}, synchronize_session='fetch')
                     i += 1
 
                 rowNum += 1
@@ -388,14 +405,13 @@ def setupDB():
 
     working_directory = input("Which directory should I place output data?: ")
 
-    engine = create_engine('sqlite:///simulation.db')
+    engine = create_engine('sqlite:///simulation.epi')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
 
 def main_menu():
     global working_directory
-    working_directory = False
 
     while True:
         """Main menu for program. Prompts user for function."""
@@ -410,18 +426,15 @@ def main_menu():
         answer = input(">>> ")
 
         if answer.startswith('1'):
-            if not working_directory:
-                setupDB()
+            setupDB()
             build_population_files(working_directory, 'Humans')
 
         if answer.startswith('2'):
-            if not working_directory:
-                setupDB()
+            setupDB()
             build_population_files(working_directory, 'Vectors')
 
         if answer.startswith('3'):
-            if not working_directory:
-                setupDB()
+            setupDB()
             simulation()
 
         if answer.startswith('4'):

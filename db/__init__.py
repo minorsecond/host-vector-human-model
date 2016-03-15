@@ -5,7 +5,7 @@ SQLite database files
 from sqlalchemy import Column, Integer, String, Float, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-engine = create_engine('sqlite:///simulation.db')
+engine = create_engine('sqlite:///simulation.epi')
 Base = declarative_base()
 
 __all__ = ['Humans', 'Vectors']
