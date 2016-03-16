@@ -2,8 +2,9 @@
 A SEIR simulation that uses SQLite and CSV Census files to define population paramaters
 """
 
-# TODO: Add option to load previously-created tables into tool.
 # TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
+# TODO: Read and write config file
+# TODO: Build log using dictionary first, before updating table.
 
 import csv
 import os.path
@@ -16,10 +17,10 @@ import numpy as np
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
-from db import Humans, Vectors
+from db import Humans, Vectors, Log
 
 # Simulation parameters
-days_to_run = 50
+days_to_run = 365
 random.seed(5)
 
 # Epidemic parameters
@@ -401,18 +402,20 @@ def simulation():
     day = 1
 
     number_humans = session.query(Humans).count()
-    initial_infected_humans = session.query(Humans).filter_by(infected='True').count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
     number_vectors = session.query(Vectors).count()
     exposed = 0
 
     clear_screen()
 
-    print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
-    sleep(1)
+    if days_to_run >= 365:
+        print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
+        sleep(5)
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
+            clear_screen()
+            print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(d, days_to_run))
 
             row = session.query(Humans).filter_by(infected='True')  # This might be way more efficient
@@ -427,13 +430,25 @@ def simulation():
 
                     contact = session.query(Humans).filter_by(id=pid).first()
 
-                    # If human_a is susceptible & human_b is infected, human_a becomes exposed
                     if contact.infected == 'False' and contact.susceptible == 'True':
-                        exposed += 1
-                        contact.exposed = 'True'
-                        contact.susceptible = 'False'
+                        if random.uniform(0, 1) < beta:  # Chance of infection
+                            exposed += 1
+                            contact.exposed = 'True'
+                            contact.susceptible = 'False'
 
                     i += 1
+
+            # Update the log entry for the day. Might want to build in a dictionary first and then
+            # update the table at end of simulation.
+            log_entry = Log(Day=d,
+                            nSusceptible=initial_susceptible_humans - exposed,
+                            nExposed=session.query(Humans).filter_by(infected='True').count() + exposed,
+                            nInfected=session.query(Humans).filter_by(infected='True').count(),
+                            nRecovered=session.query(Humans).filter_by(recovered='True').count(),
+                            nDeaths='NULL',
+                            nBirthInfections='NULL')
+            session.add(log_entry)
+
             session.commit()
             day += 1
 

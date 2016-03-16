@@ -53,4 +53,18 @@ class Vectors(Base):
     y = Column(String)
 
 
+class Log(Base):
+    """
+    Table for day-to-day list of infections, recovers, etc.
+    """
+    __tablename__ = "Log"
+    id = Column(Integer, primary_key=True)
+    Day = Column(Integer)
+    nSusceptible = Column(Integer)
+    nExposed = Column(Integer)
+    nInfected = Column(Integer)
+    nRecovered = Column(Integer)
+    nDeaths = Column(Integer)
+    nBirthInfections = Column(Integer)
+
 Base.metadata.create_all(engine)
