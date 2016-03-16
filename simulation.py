@@ -395,10 +395,13 @@ def simulation():
     Simulation class
     :return:
     """
+
+    # TODO: Create backup_table function and use here.
     rowNum = 1
     day = 1
 
     number_humans = session.query(Humans).count()
+    initial_infected_humans = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
 
     clear_screen()
@@ -408,40 +411,54 @@ def simulation():
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
+            if d == 0:
+                print("Initial infected human count: {0}".format(initial_infected_humans))
+                sleep(3)
+
             exposures = 0
 
-            print("\nSimulation running: Day {0} of {1}".format(d + 1, days_to_run))
-            for h in range(number_humans):  # Select each human by id
-                row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
-                for r in row:
-                    i = 0
-                    while i < contact_rate - 1:  # Infect by contact rate per day
-                        # Choose any random number except the one that identifies the person selected, 'h'
+            # for h in range(number_humans):  # Select each human by id
+            # row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
+            row = session.query(Humans).yield_per(1000)  # This might be way more efficient
+            for r in row:
+                i = 0
+
+                if rowNum % 100 == 0:  # Status indicator
+                    clear_screen()
+                    print("***Python Epidemiological Simulator***\n\n"
+                          "   Status: Simulation running \n"
+                          "   Current Day: {0} \n"
+                          "   Daily Exposure Count: {1} \n"
+                          "   {2} of {3} Contacts Scanned".format(day, exposures, rowNum,
+                                                                  days_to_run * number_humans * contact_rate))
+
+                while i < contact_rate:  # Infect by contact rate per day
+                    # Choose any random number except the one that identifies the person selected, 'h'
+                    pid = random.randint(1, number_humans)
+                    while pid == r.id:
                         pid = random.randint(1, number_humans)
-                        while pid == h:
-                            pid = random.randint(1, number_humans)
 
-                        contact = session.query(Humans).filter_by(id=pid).first()
+                    contact = session.query(Humans).filter_by(id=pid).first()
 
-                        # If human_a is susceptible & human_b is infected, human_a becomes exposed
-                        if contact.infected == 'True' and r.susceptible == 'True':
-                            exposures += 1
-                            print("*Exposure Count: {0}".format(exposures))
-                            row.update({"exposed": 'True'}, synchronize_session='fetch')
-                            row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                    # If human_a is susceptible & human_b is infected, human_a becomes exposed
+                    if contact.infected == 'True' and r.susceptible == 'True':
+                        exposures += 1
+                        # print("*Exposure Count: {0}".format(exposures))
+                        row.update({"exposed": 'True'}, synchronize_session='fetch')
+                        row.update({"susceptible": 'False'}, synchronize_session='fetch')
 
-                        # If human_b is susceptible & human_a is infected, human_b becomes exposed
-                        elif r.infected == 'True' and contact.susceptible == 'True':
-                            exposures += 1
-                            print("*Exposure Count: {0}".format(exposures))
-                            # contact.update({"exposed": 'True'}, synchronize_session='fetch')
-                            # contact.update({"susceptible": 'False'}, synchronize_session='fetch')
-                            contact.exposed = 'True'
-                            contact.susceptible = 'False'
+                    # If human_b is susceptible & human_a is infected, human_b becomes exposed
+                    elif r.infected == 'True' and contact.susceptible == 'True':
+                        exposures += 1
+                        # print("*Exposure Count: {0}".format(exposures))
+                        # contact.update({"exposed": 'True'}, synchronize_session='fetch')
+                        # contact.update({"susceptible": 'False'}, synchronize_session='fetch')
+                        contact.exposed = 'True'
+                        contact.susceptible = 'False'
 
-                        i += 1
-                    rowNum += 1
-                session.commit()
+                    i += 1
+                rowNum += 1
+            session.commit()
             day += 1
 
         # TODO: human within 'range' of mosquito - chance of infection
@@ -500,6 +517,42 @@ def read_db():
         main_menu()
 
 
+def drop_table(table_drop):
+    """
+    Drops whichever table is wanted from the DB
+    :param table_drop: A string defining table to drop.
+    :return:
+    """
+
+    try:
+        dbPath = 'simulation.epi'
+        engine = create_engine('sqlite:///%s' % dbPath, echo=False)
+
+        metadata = MetaData(engine)
+
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        if table_drop == 'Humans':
+            population = Table('Humans', metadata, autoload=True)
+            population.drop(engine)
+        elif table_drop == 'Vectors':
+            population = Table('Vectors', metadata, autoload=True)
+            population.drop(engine)
+        else:
+            input("I did something weird. Press enter to return to main menu.")
+            main_menu()
+
+        clear_screen()
+        input("\n\nSuccessfully drooped table '{0}'. Press enter to return to the main menu.".format(table_drop))
+
+    except:
+        clear_screen()
+        input("Could not droptable. Make sure database is named 'simulatione.epi,' and that it is loaded."
+              "Press enter to return to main menu.")
+        main_menu()
+
+
 def clear_screen():
     """
     Clears the screen to keep output tidy
@@ -527,8 +580,10 @@ def main_menu():
                   "1. Build Population Data\n"
                   "2. Build Vector Data\n"
                   "3. Load Existing Tables\n"
-                  "4. Run Simulation\n"
-                  "5. Quit\n")
+                  "4. Drop Human Tables\n"
+                  "5. Drop Vector Tables\n"
+                  "6. Run Simulation\n"
+                  "7. Quit\n")
 
             answer = input(">>> ")
 
@@ -544,13 +599,20 @@ def main_menu():
                 session = read_db()
 
             if answer.startswith('4'):
+                drop_table('Humans')
+
+            if answer.startswith('5'):
+                drop_table('Vectors')
+
+            if answer.startswith('6'):
                 try:
                     simulation()
                 except NameError:
                     clear_screen()
                     input("Database not loaded. Press enter to return to the main menu.")
                     main_menu()
-            if answer.startswith('5'):
+
+            if answer.startswith('7'):
                 die()
 
         except KeyboardInterrupt:
