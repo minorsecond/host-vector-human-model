@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 from db import Humans, Vectors
 
 # Simulation parameters
-days_to_run = 5
+days_to_run = 50
 random.seed(5)
 
 # Epidemic parameters
@@ -402,35 +402,22 @@ def simulation():
 
     number_humans = session.query(Humans).count()
     initial_infected_humans = session.query(Humans).filter_by(infected='True').count()
+    initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
     number_vectors = session.query(Vectors).count()
+    exposed = 0
 
     clear_screen()
 
     print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
-    sleep(5)
+    sleep(1)
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
-            if d == 0:
-                print("Initial infected human count: {0}".format(initial_infected_humans))
-                sleep(3)
+            print("Simulating day {0} of {1}".format(d, days_to_run))
 
-            exposures = 0
-
-            # for h in range(number_humans):  # Select each human by id
-            # row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
-            row = session.query(Humans).yield_per(1000)  # This might be way more efficient
+            row = session.query(Humans).filter_by(infected='True')  # This might be way more efficient
             for r in row:
                 i = 0
-
-                if rowNum % 100 == 0:  # Status indicator
-                    clear_screen()
-                    print("***Python Epidemiological Simulator***\n\n"
-                          "   Status: Simulation running \n"
-                          "   Current Day: {0} \n"
-                          "   Daily Exposure Count: {1} \n"
-                          "   {2} of {3} Contacts Scanned".format(day, exposures, rowNum,
-                                                                  days_to_run * number_humans * contact_rate))
 
                 while i < contact_rate:  # Infect by contact rate per day
                     # Choose any random number except the one that identifies the person selected, 'h'
@@ -441,25 +428,25 @@ def simulation():
                     contact = session.query(Humans).filter_by(id=pid).first()
 
                     # If human_a is susceptible & human_b is infected, human_a becomes exposed
-                    if contact.infected == 'True' and r.susceptible == 'True':
-                        exposures += 1
-                        # print("*Exposure Count: {0}".format(exposures))
-                        row.update({"exposed": 'True'}, synchronize_session='fetch')
-                        row.update({"susceptible": 'False'}, synchronize_session='fetch')
-
-                    # If human_b is susceptible & human_a is infected, human_b becomes exposed
-                    elif r.infected == 'True' and contact.susceptible == 'True':
-                        exposures += 1
-                        # print("*Exposure Count: {0}".format(exposures))
-                        # contact.update({"exposed": 'True'}, synchronize_session='fetch')
-                        # contact.update({"susceptible": 'False'}, synchronize_session='fetch')
+                    if contact.infected == 'False' and contact.susceptible == 'True':
+                        exposed += 1
                         contact.exposed = 'True'
                         contact.susceptible = 'False'
 
                     i += 1
-                rowNum += 1
             session.commit()
             day += 1
+
+        clear_screen()
+        print("**Post-epidemic Report**\n\n"
+              "- Total Days Run: {0}\n"
+              "- Total Exposed: {1}\n"
+              "- Average Exposed/Day: {2}\n"
+              "- Population Not Exposed: {3}\n".format(days_to_run,
+                                                       exposed,
+                                                       exposed / days_to_run,
+                                                       initial_susceptible_humans - exposed))
+        input("\nPress enter to return to main menu.")
 
         # TODO: human within 'range' of mosquito - chance of infection
     except KeyboardInterrupt:
