@@ -28,6 +28,7 @@ gamma = .3
 sigma = .35
 mu = .1
 theta = .1  # mother -> child transmission
+birthrate = 0  # birth rate
 kappa = .1  # sexual contact
 zeta = .1  # blood transfusion
 tau = .1  # chance a mosquito picks up zika from human
@@ -306,7 +307,7 @@ def build_population_files(directory, tableToBuild):
                             row = session.query(Humans).filter_by(
                                 id=h)  # select a human from the table whose ID matches
                             for r in row:
-                                print("Scanned row {0} of {1}".format(row_count, session.query(Humans).count()))
+                                print("Infected {0} of {1}".format(row_count, initial_infected))
                                 if r.id in infectList:  # This might be redundant.
                                     row.update({"susceptible": 'False'}, synchronize_session='fetch')
                                     row.update({"exposed": 'False'}, synchronize_session='fetch')
@@ -314,6 +315,8 @@ def build_population_files(directory, tableToBuild):
                                     row.update({"recovered": 'False'}, synchronize_session='fetch')
                                     initial_infection_counter += 1
                                 row_count += 1
+                            session.commit()
+            input("\nHuman population table successfully built. Press enter to return to main menu.")
 
         elif tableToBuild == 'Vectors':
 
@@ -362,6 +365,7 @@ def build_population_files(directory, tableToBuild):
                     session.add(new_vector)
             session.commit()
             del vector[:]
+            input("Vector population table successfully built. Press enter to return to main menu.")
     except KeyboardInterrupt:
         input("You interrupted me! Press enter to return to main menu.")
         main_menu()
@@ -381,8 +385,6 @@ def simulation():
     """
     rowNum = 1
     day = 1
-    syms = ['\\', '|', '/', '-']
-    bs = '\b'
 
     number_humans = session.query(Humans).count()
     number_vectors = session.query(Vectors).count()
@@ -390,22 +392,43 @@ def simulation():
     clear_screen()
 
     print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
+    sleep(5)
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
+            exposures = 0
+
+            print("\nSimulation running: Day {0} of {1}".format(d + 1, days_to_run))
             for h in range(number_humans):
                 row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
                 for r in row:
                     i = 0
-                    while i < contact_rate - 1:  # Infect by contact rate per ady
-                        contact = session.query(Humans).filter_by(id=random.randint(1, number_humans)).first()
-                        if contact.exposed == 'True':
-                            input('Boom! exposed, fool.')
+                    while i < contact_rate - 1:  # Infect by contact rate per day
+                        # Choose any random number except the one that identifies the person selected, 'h'
+                        pid = random.randint(1, number_humans)
+                        while pid == h:
+                            pid = random.randint(1, number_humans)
+
+                        contact = session.query(Humans).filter_by(id=pid).first()
+
+                        if contact.infected == 'True' and r.susceptible == 'True':
+                            exposures += 1
+                            print("*Exposure Count: {0}".format(exposures))
                             row.update({"exposed": 'True'}, synchronize_session='fetch')
+                            row.update({"susceptible": 'False'}, synchronize_session='fetch')
+
+                        elif r.infected == 'True' and contact.susceptible == 'True':
+                            exposures += 1
+                            print("*Exposure Count: {0}".format(exposures))
+                            # contact.update({"exposed": 'True'}, synchronize_session='fetch')
+                            # contact.update({"susceptible": 'False'}, synchronize_session='fetch')
+                            contact.exposed = 'True'
+                            contact.susceptible = 'False'
+
                         i += 1
                     rowNum += 1
+                session.commit()
             day += 1
-        session.commit()
 
         # for human_a in session.query(Humans).yield_per(1000):
         #    i = 0
