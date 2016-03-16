@@ -46,6 +46,12 @@ mosquito_init_infectd = 0
 
 
 def prompt(question):
+    """
+    Simple user y/n prompt
+    :param question:
+    :return:
+    """
+
     reply = str(input(question + ' (y/n): ')).lower().strip()
     if reply[0] == 'y':
         return True
@@ -69,8 +75,8 @@ def build_population():
     print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
     for i in sub_regions_dict:
-        subregion = i
-        pop = sub_regions_dict[i].get('pop')
+        subregion = i  # subregion ID
+        pop = sub_regions_dict[i].get('pop')  # grab population from subregion dict
 
         population = dict(
             (x, {
@@ -94,7 +100,7 @@ def build_population():
             }) for x in range(pop)
         )
 
-        for x in population:
+        for x in population:  # assign pregnancy to some of population  This is duplicated.  TODO: figure out which one works
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if random.randint(0, 100) < 4:
@@ -120,7 +126,7 @@ def build_vectors():
 
     for i in sub_regions_dict:
         subregion = i
-        area = float(sub_regions_dict[i].get('area'))
+        area = float(sub_regions_dict[i].get('area'))  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
 
         vector_population = dict(
@@ -161,8 +167,11 @@ def sub_regions(filename):
     subregion = {}
 
     with open(filename, 'r') as csvfile:
+        # Skip header
         has_header = csv.Sniffer().has_header(csvfile.read(1024))
         csvfile.seek(0)
+
+        # Read the CSV
         reader = csv.reader(csvfile, delimiter=',')
         if has_header:
             next(reader)
@@ -203,6 +212,7 @@ def check_if_file_exists(file):
             except OSError:
                 raise OSError
 
+        # Create backup of file if it already exists
         elif prompt("Create backup of {0} named {1}? ".format(file, file + '.bk')):
             new_file = file + '.bk'
             os.rename(file, new_file)
@@ -247,7 +257,7 @@ def build_population_files(directory, tableToBuild):
             pregnancy_eligible = 0
             pregnant_count = 0
 
-            for dictionary in population:
+            for dictionary in population:  # Human dictionary
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
@@ -293,13 +303,14 @@ def build_population_files(directory, tableToBuild):
                 session.commit()
 
             # This is bad - it has very high overhead.
-            if initial_infected > 0:  # Create the initial infections
+            # Create initial human infections
+            if initial_infected > 0:  # Only run if we start with human infections
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(initial_infected):
-                    infectList.append(random.randint(1, len(population)))
-                del population[:]
-                clear_screen()
+                    infectList.append(random.randint(1, len(population)))  # Select random person, by id, to infect
+                del population[:]  # Delete the population dictionary, because it's massive
+                clear_screen()  # it's prettier
                 print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
                 for i in infectList:
                     while initial_infection_counter < initial_infected:
@@ -308,13 +319,14 @@ def build_population_files(directory, tableToBuild):
                                 id=h)  # select a human from the table whose ID matches
                             for r in row:
                                 print("Infected {0} of {1}".format(row_count, initial_infected))
-                                if r.id in infectList:  # This might be redundant.
+                                if r.id in infectList:  # This might be redundant. I think ' if r.id == h'
                                     row.update({"susceptible": 'False'}, synchronize_session='fetch')
                                     row.update({"exposed": 'False'}, synchronize_session='fetch')
                                     row.update({"infected": 'True'}, synchronize_session='fetch')
                                     row.update({"recovered": 'False'}, synchronize_session='fetch')
                                     initial_infection_counter += 1
                                 row_count += 1
+
                             session.commit()
             input("\nHuman population table successfully built. Press enter to return to main menu.")
 
@@ -399,7 +411,7 @@ def simulation():
             exposures = 0
 
             print("\nSimulation running: Day {0} of {1}".format(d + 1, days_to_run))
-            for h in range(number_humans):
+            for h in range(number_humans):  # Select each human by id
                 row = session.query(Humans).filter_by(id=h)  # TODO:  handle situations where h doesn't match any ID
                 for r in row:
                     i = 0
@@ -411,12 +423,14 @@ def simulation():
 
                         contact = session.query(Humans).filter_by(id=pid).first()
 
+                        # If human_a is susceptible & human_b is infected, human_a becomes exposed
                         if contact.infected == 'True' and r.susceptible == 'True':
                             exposures += 1
                             print("*Exposure Count: {0}".format(exposures))
                             row.update({"exposed": 'True'}, synchronize_session='fetch')
                             row.update({"susceptible": 'False'}, synchronize_session='fetch')
 
+                        # If human_b is susceptible & human_a is infected, human_b becomes exposed
                         elif r.infected == 'True' and contact.susceptible == 'True':
                             exposures += 1
                             print("*Exposure Count: {0}".format(exposures))
@@ -430,19 +444,6 @@ def simulation():
                 session.commit()
             day += 1
 
-        # for human_a in session.query(Humans).yield_per(1000):
-        #    i = 0
-        #    while i < contact_rate:
-        #        for human_b in session.query(Humans).yield_per(1000):
-        #            if human_a.id != human_b.id:
-        #                #print("Processing row #{0} of {1}".format(rowNum, number_humans * contact_rate * days_to_run))
-        #                if human_b.exposed == 'True':
-        #                    input("BREAK - THE INFECTION CODE WORKED")
-        #                    human_a.update({"exposed": 'True'}, synchronize_session='fetch')
-        #                rowNum += 1
-        #        i += 1
-
-
         # TODO: human within 'range' of mosquito - chance of infection
     except KeyboardInterrupt:
         clear_screen()
@@ -451,6 +452,11 @@ def simulation():
 
 
 def setupDB():
+    """
+    Set up the sqlite DB
+    :return: a sqlalchemy session
+    """
+
     global working_directory
     global session
 
@@ -466,7 +472,7 @@ def setupDB():
 def read_db():
     """
     Reads existing .epi db
-    :return:
+    :return: A sqlalchemy session
     """
 
     try:
@@ -495,10 +501,20 @@ def read_db():
 
 
 def clear_screen():
+    """
+    Clears the screen to keep output tidy
+    :return:
+    """
+
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def main_menu():
+    """
+    The main menu of options
+    :return:
+    """
+
     global working_directory
     global session
 
