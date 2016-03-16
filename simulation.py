@@ -403,6 +403,9 @@ def simulation():
 
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
+    susceptible_count = initial_susceptible_humans
+    exposed_count = 0
+    infected_count = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
     exposed = 0
 
@@ -435,8 +438,20 @@ def simulation():
                             exposed += 1
                             contact.exposed = 'True'
                             contact.susceptible = 'False'
-
+                            susceptible_count = - 1
+                            exposed_count += 1
                     i += 1
+
+            log = dict(
+                (d, {
+                    'nSusceptible': susceptible_count,
+                    'nExposed': exposed_count,
+                    'nInfected': infected_count,
+                    'nRecovered': 0,
+                    'nDeaths': 0,
+                    'nBirthInfections': 0
+                }))
+
 
             # Update the log entry for the day. Might want to build in a dictionary first and then
             # update the table at end of simulation.
