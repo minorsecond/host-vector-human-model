@@ -23,6 +23,7 @@ class Humans(Base):
     age = Column(Integer)
     sex = Column(String)
     pregnant = Column(String)
+    # initial_susceptible = Column(Boolean)
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     exposed = Column(String, index=True)

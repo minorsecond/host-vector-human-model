@@ -14,7 +14,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table
+from sqlalchemy import create_engine, MetaData, Table, and_
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log
@@ -426,6 +426,7 @@ def simulation():
             print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(d, days_to_run))
 
+            # Run human-human interactions
             row = session.query(Humans).filter_by(infected='True').yield_per(1000)  # This might be way more efficient
             for r in row:
                 i = 0
@@ -436,10 +437,12 @@ def simulation():
                     while pid == r.id:
                         pid = random.randint(1, number_humans)
 
-                    contact = session.query(Humans).filter_by(id=pid).first()
+                    if random.uniform(0, 1) < beta:  # chance of infection
 
-                    if contact.susceptible == 'True':
-                        if random.uniform(0, 1) < beta:  # Chance of infection
+                        contact = session.query(Humans).filter(
+                            and_(Humans.id == pid, Humans.susceptible == 'True')).first()
+
+                        if contact:
                             exposed += 1
                             contact.exposed = 'True'
                             contact.susceptible = 'False'
@@ -453,6 +456,7 @@ def simulation():
                         r.infected = 'False'
                         if random.uniform(0, 1) < death_chance:
                             r.dead = 'True'
+                            infected_count -= 1
                         else:
                             r.recovered = 'True'
                             infected_count -= 1
@@ -465,9 +469,7 @@ def simulation():
 
                 r.dayOfInf += 1
 
-            # exposed_query = session.query(Humans).filter_by(exposed='True').yield_per(1000  # Now, update exposed -> infected
-            exposed_query = session.query(Humans).filter_by(exposed >= latent_period).yield_per(
-                1000)  # This may not work.
+            exposed_query = session.query(Humans).filter(Humans.exposed == 'True').yield_per(1000)
             for r in exposed_query:
                 if r.dayOfExp >= latent_period:
                     r.exposed = 'False'
@@ -477,6 +479,10 @@ def simulation():
                     infected_count += 1
                 else:
                     r.dayOfExp += 1
+
+            # Run mosquito-human interactions
+            v = session.query(Vectors).filter_by(infected='True').yield_per(1000)
+
 
             log_entry = Log(Day=d + 1,
                             nSusceptible=susceptible_count,
@@ -580,9 +586,13 @@ def drop_table(table_drop):
         if table_drop == 'Humans':
             population = Table('Humans', metadata, autoload=True)
             population.drop(engine)
+            setupDB()
+
         elif table_drop == 'Vectors':
             population = Table('Vectors', metadata, autoload=True)
             population.drop(engine)
+            setupDB()
+
         else:
             input("I did something weird. Press enter to return to main menu.")
             main_menu()
