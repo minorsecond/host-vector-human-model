@@ -17,19 +17,20 @@ class Humans(Base):
     """
 
     __tablename__ = "Humans"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     uniqueID = Column(String)
     subregion = Column(String)
     age = Column(Integer)
     sex = Column(String)
     pregnant = Column(String)
-    susceptible = Column(String)
-    infected = Column(String)
-    exposed = Column(String)
-    recovered = Column(String)
+    susceptible = Column(String, index=True)
+    infected = Column(String, index=True)
+    exposed = Column(String, index=True)
+    recovered = Column(String, index=True)
+    dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    dayOfRec = Column(Integer)
+    # dayOfRec = Column(Integer)
     resistant = Column(String)
     x = Column(String)
     y = Column(String)
@@ -41,7 +42,7 @@ class Vectors(Base):
     """
 
     __tablename__ = "vectors"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     uniqueID = Column(String)
     subregion = Column(String)
     range = Column(Float)

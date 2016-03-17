@@ -24,7 +24,9 @@ days_to_run = 365
 random.seed(5)
 
 # Epidemic parameters
-beta = .25
+causes_death = True
+death_chance = .02
+beta = .05
 gamma = .3
 sigma = .35
 mu = .1
@@ -33,6 +35,8 @@ birthrate = 0  # birth rate
 kappa = .1  # sexual contact
 zeta = .1  # blood transfusion
 tau = .1  # chance a mosquito picks up zika from human
+infectious_period = 5
+latent_period = 3
 
 # Human population parameters
 initial_susceptible = 750000
@@ -92,7 +96,7 @@ def build_population():
                 'recovered': 'False',
                 'dayOfInf': 0,
                 'dayOfExp': 0,
-                'dayOfRec': 0,
+                # 'dayOfRec': 0,
                 'recState': 0,
                 'resistant': 'False',
                 'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
@@ -271,7 +275,7 @@ def build_population_files(directory, tableToBuild):
                     recovered = dictionary[i].get('recovered')
                     dayOfInf = dictionary[i].get('dayOfInf')
                     dayOfExp = dictionary[i].get('dayOfExp')
-                    dayOfRec = dictionary[i].get('dayOfRec')
+                    #dayOfRec = dictionary[i].get('dayOfRec')
                     resistant = dictionary[i].get('resistant')
                     x = dictionary[i].get('x')
                     y = dictionary[i].get('y')
@@ -294,7 +298,7 @@ def build_population_files(directory, tableToBuild):
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        dayOfRec=dayOfRec,
+                        #dayOfRec=dayOfRec,
                         resistant=resistant,
                         x=x,
                         y=y
@@ -405,6 +409,7 @@ def simulation():
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
     susceptible_count = initial_susceptible_humans
     exposed_count = 0
+    recovered_count = 0
     infected_count = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
     exposed = 0
@@ -421,7 +426,7 @@ def simulation():
             print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(d, days_to_run))
 
-            row = session.query(Humans).filter_by(infected='True')  # This might be way more efficient
+            row = session.query(Humans).filter_by(infected='True').yield_per(1000)  # This might be way more efficient
             for r in row:
                 i = 0
 
@@ -433,33 +438,51 @@ def simulation():
 
                     contact = session.query(Humans).filter_by(id=pid).first()
 
-                    if contact.infected == 'False' and contact.susceptible == 'True':
+                    if contact.susceptible == 'True':
                         if random.uniform(0, 1) < beta:  # Chance of infection
                             exposed += 1
                             contact.exposed = 'True'
                             contact.susceptible = 'False'
-                            susceptible_count = - 1
+                            susceptible_count += - 1
                             exposed_count += 1
+                            contact.dayOfInf += 1
                     i += 1
 
-            log = dict(
-                (d, {
-                    'nSusceptible': susceptible_count,
-                    'nExposed': exposed_count,
-                    'nInfected': infected_count,
-                    'nRecovered': 0,
-                    'nDeaths': 0,
-                    'nBirthInfections': 0
-                }))
+                if r.dayOfInf >= infectious_period:
+                    if causes_death:
+                        r.infected = 'False'
+                        if random.uniform(0, 1) < death_chance:
+                            r.dead = 'True'
+                        else:
+                            r.recovered = 'True'
+                            infected_count -= 1
+                            recovered_count += 1
+                    else:
+                        r.infected = 'False'
+                        r.recovered = 'True'
+                        infected_count -= 1
+                        recovered_count += 1
 
+                r.dayOfInf += 1
 
-            # Update the log entry for the day. Might want to build in a dictionary first and then
-            # update the table at end of simulation.
-            log_entry = Log(Day=d,
-                            nSusceptible=initial_susceptible_humans - exposed,
-                            nExposed=session.query(Humans).filter_by(infected='True').count() + exposed,
-                            nInfected=session.query(Humans).filter_by(infected='True').count(),
-                            nRecovered=session.query(Humans).filter_by(recovered='True').count(),
+            # exposed_query = session.query(Humans).filter_by(exposed='True').yield_per(1000  # Now, update exposed -> infected
+            exposed_query = session.query(Humans).filter_by(exposed >= latent_period).yield_per(
+                1000)  # This may not work.
+            for r in exposed_query:
+                if r.dayOfExp >= latent_period:
+                    r.exposed = 'False'
+                    r.infected = 'True'
+
+                    exposed_count -= 1
+                    infected_count += 1
+                else:
+                    r.dayOfExp += 1
+
+            log_entry = Log(Day=d + 1,
+                            nSusceptible=susceptible_count,
+                            nExposed=exposed_count,
+                            nInfected=infected_count,
+                            nRecovered=recovered_count,
                             nDeaths='NULL',
                             nBirthInfections='NULL')
             session.add(log_entry)
@@ -474,8 +497,12 @@ def simulation():
               "- Average Exposed/Day: {2}\n"
               "- Population Not Exposed: {3}\n".format(days_to_run,
                                                        exposed,
-                                                       exposed / days_to_run,
+                                                       round((exposed / days_to_run), 2),
                                                        initial_susceptible_humans - exposed))
+
+        # Update the log entry for the day. Might want to build in a dictionary first and then
+        # update the table at end of simulation.
+
         input("\nPress enter to return to main menu.")
 
         # TODO: human within 'range' of mosquito - chance of infection
@@ -622,12 +649,13 @@ def main_menu():
                 drop_table('Vectors')
 
             if answer.startswith('6'):
-                try:
-                    simulation()
-                except NameError:
-                    clear_screen()
-                    input("Database not loaded. Press enter to return to the main menu.")
-                    main_menu()
+                simulation()
+                # try:
+                #    simulation()
+                # except NameError:
+                #    clear_screen()
+                #    input("Database not loaded. Press enter to return to the main menu.")
+                #    main_menu()
 
             if answer.startswith('7'):
                 die()
