@@ -484,7 +484,7 @@ def simulation():
                     r.dayOfExp += 1
 
             # Run mosquito-human interactions
-            vectors = session.query(Vectors).yield_per(1000)
+            vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
             for m in vectors:
                 i = 0
                 while i < biting_rate:
