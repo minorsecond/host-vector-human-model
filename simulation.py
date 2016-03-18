@@ -48,6 +48,7 @@ contact_rate = 5
 mosquito_susceptible_coef = 200  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
+biting_rate = 3  # average bites per day
 
 
 def prompt(question):
@@ -138,7 +139,7 @@ def build_vectors():
             (x, {
                 'uuid': str(uuid()),
                 'subregion': subregion,
-                'range': random.uniform(0, 500),  # 500 meters or so
+                # 'range': random.uniform(0, 500),  # 500 meters or so
                 'lifetime': random.uniform(0, 14),  # in days
                 'susceptible': 'True',
                 'exposed': 'False',
@@ -351,7 +352,7 @@ def build_population_files(directory, tableToBuild):
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
-                    range_ = dictionary[i].get('range')
+                    #range_ = dictionary[i].get('range')
                     lifetime = dictionary[i].get('lifetime')
                     susceptible = dictionary[i].get('susceptible')
                     exposed = dictionary[i].get('exposed')
@@ -370,7 +371,7 @@ def build_population_files(directory, tableToBuild):
                     new_vector = Vectors(
                         uniqueID=uniqueID,
                         subregion=subregion,
-                        range=range_,
+                        #range=range_,
                         lifetime=lifetime,
                         susceptible=susceptible,
                         exposed=exposed,
@@ -449,7 +450,7 @@ def simulation():
                             susceptible_count += - 1
                             exposed_count += 1
                             contact.dayOfInf += 1
-                    i += 1
+                            i += 1
 
                 if r.dayOfInf >= infectious_period:
                     if causes_death:
@@ -481,8 +482,21 @@ def simulation():
                     r.dayOfExp += 1
 
             # Run mosquito-human interactions
-            v = session.query(Vectors).filter_by(infected='True').yield_per(1000)
-
+            vectors = session.query(Vectors).yield_per(1000)
+            for m in vectors:
+                i = 0
+                while i < biting_rate:
+                    pid = random.randint(1, number_humans)  # Pick a human to bite
+                    contact = session.query(Humans).filter(
+                        and_(Humans.id == pid, Humans.susceptible == 'True')).first()
+                    if contact:
+                        if contact.susceptible == 'True' and m.infected == 'True' and random.uniform(0, 1) < beta:
+                            contact.susceptible = 'False'
+                            contact.infected = 'True'
+                        elif contact.infected == 'True' and m.susceptible == 'True':
+                            m.susceptible = 'False'
+                            m.infected = 'True'
+                        i += 1
 
             log_entry = Log(Day=d + 1,
                             nSusceptible=susceptible_count,

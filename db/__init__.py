@@ -2,7 +2,7 @@
 SQLite database files
 """
 
-from sqlalchemy import Column, Integer, String, Float, create_engine
+from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('sqlite:///simulation.epi')
@@ -46,11 +46,9 @@ class Vectors(Base):
     id = Column(Integer, primary_key=True, index=True)
     uniqueID = Column(String)
     subregion = Column(String)
-    range = Column(Float)
     lifetime = Column(Integer)
-    susceptible = Column(String)
-    exposed = Column(String)
-    infected = Column(String)
+    susceptible = Column(String, index=True)
+    infected = Column(String, index=True)
     x = Column(String)
     y = Column(String)
 
