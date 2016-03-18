@@ -15,7 +15,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table, and_
+from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log
@@ -290,7 +290,7 @@ def build_population_files(directory, tableToBuild):
 
                     new_human = Humans(
                         # uniqueID=uniqueID,
-                        # subregion=subregion,
+                        subregion=subregion,
                         # age=age,
                         #sex=sex,
                         pregnant=pregnant,
@@ -371,7 +371,7 @@ def build_population_files(directory, tableToBuild):
 
                     new_vector = Vectors(
                         # uniqueID=uniqueID,
-                        #subregion=subregion,
+                        subregion=subregion,
                         #range=range_,
                         #lifetime=lifetime,
                         susceptible=susceptible,
@@ -406,6 +406,8 @@ def simulation():
     rowNum = 1
     day = 1
 
+    id_list = []
+    vector_list = []
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
     susceptible_count = initial_susceptible_humans
@@ -415,13 +417,44 @@ def simulation():
     nSuscVectors = 1
     infected_count = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
-    exposed = 0
+    total_exposed = 0
 
     clear_screen()
 
     if days_to_run >= 365:
         print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
-        sleep(5)
+        sleep(3)
+
+    row = session.query(Humans).yield_per(1000)  # This might be way more efficient
+    population = dict(
+        (r.id, {
+            'id': r.id,
+            'subregion': r.subregion,
+            'pregnant': 'False',
+            'susceptible': r.susceptible,
+            'infected': r.infected,
+            'exposed': r.exposed,
+            'recovered': r.recovered,
+            'dayOfInf': r.dayOfInf,
+            'dayOfExp': r.dayOfExp,
+        }) for r in row
+    )
+
+    for p in population:
+        id_list.append(p)
+
+    vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
+    vectors = dict(
+        (v.id, {
+            'id': v.id,
+            'subregion': v.subregion,
+            'susceptible': v.susceptible,
+            'infected': v.infected,
+        }) for v in vectors
+    )
+
+    for v in vectors:
+        vector_list.append(v)
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
@@ -430,76 +463,79 @@ def simulation():
             print("Simulating day {0} of {1}".format(d, days_to_run))
 
             # Run human-human interactions
-            row = session.query(Humans).filter_by(infected='True').yield_per(1000)  # This might be way more efficient
-            for r in row:
+            for r in id_list:
+                person_a = population.get(r)
                 i = 0
+
+                if person_a['exposed'] == 'True':
+                    if person_a['dayOfExp'] >= latent_period:
+                        person_a['exposed'] = 'False'
+                        person_a['infected'] = 'True'
+                        exposed_count -= 1
+                        infected_count += 1
+
+                    else:
+                        person_a['dayOfExp'] += 1
 
                 while i < contact_rate:  # Infect by contact rate per day
                     # Choose any random number except the one that identifies the person selected, 'h'
-                    pid = random.randint(1, number_humans)
-                    while pid == r.id:
-                        pid = random.randint(1, number_humans)
+                    pid = random.choice(id_list)
+                    while pid == r:
+                        pid = random.choice(id_list)
 
+                    # make sure to make infections go both ways here!!
                     if random.uniform(0, 1) < beta:  # chance of infection
+                        person_b = population.get(pid)
 
-                        contact = session.query(Humans).filter(
-                            and_(Humans.id == pid, Humans.susceptible == 'True')).first()
+                        person_b['exposed'] = 'True'
+                        person_b['susceptible'] = 'False'
+                        total_exposed += 1
+                        susceptible_count += - 1
+                        exposed_count += 1
+                        person_b['dayOfInf'] += 1
+                    i += 1
 
-                        if contact:
-                            exposed += 1
-                            contact.exposed = 'True'
-                            contact.susceptible = 'False'
-                            susceptible_count += - 1
-                            exposed_count += 1
-                            contact.dayOfInf += 1
-                            i += 1
-
-                if r.dayOfInf >= infectious_period:
+                if person_a['dayOfInf'] >= infectious_period:
                     if causes_death:
-                        r.infected = 'False'
+                        person_a['infected'] = 'False'
                         if random.uniform(0, 1) < death_chance:
-                            r.dead = 'True'
+                            person_a['dead'] = 'True'
                             infected_count -= 1
                         else:
-                            r.recovered = 'True'
+                            person_a['recovered'] = 'True'
                             infected_count -= 1
                             recovered_count += 1
                     else:
-                        r.infected = 'False'
-                        r.recovered = 'True'
+                        person_a['infected'] = 'False'
+                        person_a['recovered'] = 'True'
                         infected_count -= 1
                         recovered_count += 1
 
-                r.dayOfInf += 1
-
-            exposed_query = session.query(Humans).filter(Humans.exposed == 'True').yield_per(1000)
-            for r in exposed_query:
-                if r.dayOfExp >= latent_period:
-                    r.exposed = 'False'
-                    r.infected = 'True'
-
-                    exposed_count -= 1
-                    infected_count += 1
-                else:
-                    r.dayOfExp += 1
+                    person_a['dayOfInf'] += 1
 
             # Run mosquito-human interactions
-            vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
-            for m in vectors:
+
+            for v in vector_list:
                 i = 0
+                vector = vectors.get(v)
+
                 while i < biting_rate:
-                    pid = random.randint(1, number_humans)  # Pick a human to bite
-                    contact = session.query(Humans).filter(Humans.id == pid).first()
-                    if contact:
-                        if contact.susceptible == 'True' and m.infected == 'True' and random.uniform(0, 1) < beta:
-                            contact.susceptible = 'False'
-                            contact.exposed = 'True'
-                        elif contact.infected == 'True' and m.susceptible == 'True':
-                            m.susceptible = 'False'
-                            m.infected = 'True'
-                            nInfectedVectors += 1
-                            nSuscVectors += 1
-                        i += 1
+                    pid = random.choice(id_list)  # Pick a human to bite
+                    person = population.get(pid)
+
+                    if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(0, 1) < beta:
+                        person['susceptible'] = 'False'
+                        person['exposed'] = 'True'
+                        exposed_count += 1
+                        total_exposed += 1
+                        susceptible_count -= 1
+
+                    elif person['infected'] == 'True' and vector['susceptible'] == 'True':
+                        vector['susceptible'] = 'False'
+                        vector['infected'] = 'True'
+                        nInfectedVectors += 1
+                        nSuscVectors -= 1
+                    i += 1
 
             log_entry = Log(Day=d + 1,
                             nSusceptible=susceptible_count,
@@ -509,9 +545,8 @@ def simulation():
                             nDeaths='NULL',
                             nBirthInfections='NULL')
             session.add(log_entry)
-
-            session.commit()
             day += 1
+        session.commit()
 
         clear_screen()
         print("**Post-epidemic Report**\n\n"
@@ -519,9 +554,9 @@ def simulation():
               "- Total Exposed: {1}\n"
               "- Average Exposed/Day: {2}\n"
               "- Population Not Exposed: {3}\n".format(days_to_run,
-                                                       exposed,
-                                                       round((exposed / days_to_run), 2),
-                                                       initial_susceptible_humans - exposed))
+                                                       total_exposed,
+                                                       round((total_exposed / days_to_run), 2),
+                                                       initial_susceptible_humans - total_exposed))
 
         # Update the log entry for the day. Might want to build in a dictionary first and then
         # update the table at end of simulation.
@@ -559,6 +594,8 @@ def read_db():
     Reads existing .epi db
     :return: A sqlalchemy session
     """
+
+    global session
 
     try:
         dbPath = 'simulation.epi'

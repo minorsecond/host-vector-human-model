@@ -19,7 +19,7 @@ class Humans(Base):
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True, index=True)
     # uniqueID = Column(String)
-    # subregion = Column(String)
+    subregion = Column(String)
     # age = Column(Integer)
     # sex = Column(String)
     pregnant = Column(String)
@@ -45,7 +45,7 @@ class Vectors(Base):
     __tablename__ = "vectors"
     id = Column(Integer, primary_key=True, index=True)
     # uniqueID = Column(String)
-    # subregion = Column(String)
+    subregion = Column(String)
     #lifetime = Column(Integer)
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
