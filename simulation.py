@@ -4,7 +4,7 @@ A SEIR simulation that uses SQLite and CSV Census files to define population par
 
 # TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
 # TODO: Read and write config file
-# TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins.
+# TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins. Maybe use a sine.
 
 import configparser
 import csv
