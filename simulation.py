@@ -155,6 +155,7 @@ def build_vectors():
                 'susceptible': 'False',
                 'exposed': 'False',
                 'infected': 'False',
+                'removed': 'False',
                 'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
                 'y': np.random.uniform(2098719.000, 2147597.000)
             }) for x in range(vector_pop)
@@ -398,6 +399,7 @@ def build_population_files(directory, tableToBuild):
                     susceptible = dictionary[i].get('susceptible')
                     exposed = dictionary[i].get('exposed')
                     infected = dictionary[i].get('infected')
+                    removed = dictionary[i].get('removed')
                     # x = dictionary[i].get('x')
                     #y = dictionary[i].get('y')
 
@@ -418,6 +420,7 @@ def build_population_files(directory, tableToBuild):
                         lifetime=lifetime,
                         susceptible=susceptible,
                         infected=infected,
+                        removed=removed
                         # x=x,
                         #y=y
                     )
@@ -435,8 +438,6 @@ def euclidian():
     Calculate distance between points on 2d surface
     :return:
     """
-
-
 
 def simulation():
     """
@@ -500,6 +501,7 @@ def simulation():
             'subregion': v.subregion,
             'susceptible': v.susceptible,
             'infected': v.infected,
+            'removed': v.removed
         }) for v in vectors
     )
 
@@ -517,12 +519,14 @@ def simulation():
             i = 0
 
             for v in vectors:
-                if v['birthday'] == day and v['alive'] == 'False' and v[
-                    'removed'] == 'False':  # Number of vectors varies each day
+                if vectors.get(v)['birthday'] == day and \
+                                vectors.get(v)['alive'] == 'False' and \
+                                vectors.get(v)['removed'] == 'False':  # Number of vectors varies each day
                     vector_list.append(v)
-                    v['alive'] = 'True'
+                    vectors.get(v)['alive'] = 'True'
+                    vectors.get(v)['susceptible'] = 'True'
 
-                elif v['alive'] == 'True':
+                elif vectors.get(v)['alive'] == 'True':
                     vector_list.append(v)
 
             if day == 0:  # Start log at day 0
@@ -544,7 +548,8 @@ def simulation():
 
                 if person_a['susceptible'] == 'True':
                     if person_a['importDay'] == day:
-                        choice = random.choice("infected", "exposed")
+                        choices = ["infected", "exposed"]
+                        choice = random.choice(choices)
                         person_a[choice] = 'True'
                         person_a['susceptible'] = 'False'
 
@@ -552,7 +557,6 @@ def simulation():
                     if person_a['dayOfExp'] >= latent_period:
                         person_a['exposed'] = 'False'
                         person_a['infected'] = 'True'
-                        person_a['dayOfExp'] = 0
 
                 if person_a['infected'] == 'True':
                     if person_a['dayOfInf'] >= infectious_period:
@@ -564,12 +568,10 @@ def simulation():
                             else:
                                 person_a['recovered'] = 'True'
                                 person_a['infected'] = 'False'
-                                person_a['dayOfInf'] = 0
 
                         else:
                             person_a['infected'] = 'False'
                             person_a['recovered'] = 'True'
-                            person_a['dayOfInf'] = 0
 
                 while contact_counter < contact_rate:  # Infect by contact rate per day
                     # Choose any random number except the one that identifies the person selected, 'h'
@@ -616,8 +618,9 @@ def simulation():
                         biteable_humans -= 1
                     i += 1
 
-                if vector['lifetime'] <= vector['daysAlive']:
+                if vector['daysAlive'] >= vector['lifetime']:
                     vector['removed'] = 'True'
+                    vector['alive'] = 'False'
                     vector['susceptible'] = 'False'
                     vector['infected'] = 'False'
 
@@ -633,7 +636,6 @@ def simulation():
                     infected_count += 1
                     population.get(person)['dayOfInf'] += 1
 
-
                 elif population.get(person)['recovered'] == 'True':
                     recovered_count += 1
 
@@ -644,22 +646,27 @@ def simulation():
                 if vectors.get(v)['susceptible'] == 'True':
                     vector_susceptible_count += 1
 
-                elif vectors.get(v)['infected'] == 'True':
+                if vectors.get(v)['infected'] == 'True':
                     vector_infected_count += 1
 
-                elif vectors.get(v)['removed'] == 'True:':
+                elif vectors.get(v)['removed'] == 'True':
                     vector_removed_count += 1
 
-            # clear_screen()
+            clear_screen()
             print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(day, days_to_run))
-            print("Humans   -   Susceptible:    {0}    |    Exposed:    {1} |   Infected:   {2} |   Recovered:  {3}"
-                  .format(susceptible_count,
-                          exposed_count,
-                          infected_count,
-                          recovered_count))
-            print("Vectors  -   Susceptible:    {0}    |    Infected:   {1}".format(vector_susceptible_count,
-                                                                                    vector_infected_count))
+            print("\n---------------------------------"
+                  "\n|Susceptible hosts:    {0}     |"
+                  "\n|Exposed hosts:        {1}     |"
+                  "\n|Infected hosts:       {2}     |"
+                  "\n|Recovered hosts:      {3}     |"
+                  "\n|==============================|"
+                  "\n|Susceptible vectors:  {4}     |"
+                  "\n|Infected vectors:     {5}     |"
+                  "\n|Removed vectors:      {6}     |"
+                  "\n--------------------------------"
+                  .format(susceptible_count, exposed_count, infected_count, recovered_count, vector_susceptible_count,
+                          vector_infected_count, vector_removed_count))
 
             log_entry = Log(Day=day + 1,
                             nSusceptible=susceptible_count,
@@ -667,7 +674,10 @@ def simulation():
                             nInfected=infected_count,
                             nRecovered=recovered_count,
                             nDeaths='NULL',
-                            nBirthInfections='NULL')
+                            nBirthInfections='NULL',
+                            nInfectedVectors=vector_infected_count,
+                            nSuscVectors=vector_susceptible_count,
+                            nRemovedVectors=vector_removed_count)
             session.add(log_entry)
             day += 1
 
@@ -675,6 +685,7 @@ def simulation():
 
         session.commit()
 
+        not_exposed = session.query(Humans).filter_by(susceptible='True').count()
         clear_screen()
         print("**Post-epidemic Report**\n\n"
               "- Total Days Run: {0}\n"
@@ -682,8 +693,8 @@ def simulation():
               "- Average Exposed/Day: {2}\n"
               "- Population Not Exposed: {3}\n".format(days_to_run,
                                                        total_exposed,
-                                                       round((total_exposed / days_to_run), 2),
-                                                       number_humans - total_exposed))
+                                                       round((number_humans - not_exposed / days_to_run), 2),
+                                                       not_exposed))
 
         # Update the log entry for the day. Might want to build in a dictionary first and then
         # update the table at end of simulation.
@@ -851,7 +862,9 @@ def create_config_file():
                 config["HOST POPULATION PARAMETERS"] = {
                     'initial_exposed': input("Number of hosts to expose before model begins: "),
                     'initial_infected': input("\nNumber of hosts to infect before model begins: "),
-                    'contact_rate': input("\nNumber of contacts per day, per host: ")
+                    'contact_rate': input("\nNumber of contacts per day, per host: "),
+                    'imports': prompt("\nAllow individuals to import disease from elsewhere?"),
+                    'nImporters': input("\nIf so, how many importers?: ")
                 }
 
                 with open('simulation.cfg', 'a') as configfile:
@@ -868,7 +881,9 @@ def create_config_file():
                     'mosquito_susceptible_coef': input("Mosquitos per square kilometer: "),
                     'mosquito_exposed': input("\nNumber of vectors to expose before model begins: "),
                     'mosquito_init_infected': input("\nNumber of vectors to infect before model begins: "),
-                    'biting_rate': input("\nNumber of humans each mosquito bites per day: ")
+                    'biting_rate': input("\nNumber of humans each mosquito bites per day: "),
+                    'season_start': input("\nWhat day will mosquito season begin?: "),
+                    'season_end': input("\nWhat day will mosquito season end?: ")
                 }
 
                 with open('simulation.cfg', 'a') as configfile:

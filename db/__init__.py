@@ -73,5 +73,6 @@ class Log(Base):
     nBirthInfections = Column(Integer)
     nInfectedVectors = Column(Integer)
     nSuscVectors = Column(Integer)
+    nRemovedVectors = Column(Integer)
 
 Base.metadata.create_all(engine)
