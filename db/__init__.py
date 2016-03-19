@@ -2,7 +2,7 @@
 SQLite database files
 """
 
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, Boolean, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('sqlite:///simulation.epi')
@@ -19,7 +19,9 @@ class Humans(Base):
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True, index=True)
     # uniqueID = Column(String)
-    # subregion = Column(String)
+    subregion = Column(String)
+    importer = Column(Boolean)
+    importDay = Column(Integer)
     # age = Column(Integer)
     # sex = Column(String)
     pregnant = Column(String)
@@ -45,10 +47,13 @@ class Vectors(Base):
     __tablename__ = "vectors"
     id = Column(Integer, primary_key=True, index=True)
     # uniqueID = Column(String)
-    # subregion = Column(String)
-    #lifetime = Column(Integer)
+    subregion = Column(String)
+    alive = Column(String)
+    birthday = Column(Integer)
+    lifetime = Column(Integer)
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
+    removed = Column(String)
     # x = Column(String)
     #y = Column(String)
 
@@ -68,5 +73,6 @@ class Log(Base):
     nBirthInfections = Column(Integer)
     nInfectedVectors = Column(Integer)
     nSuscVectors = Column(Integer)
+    nRemovedVectors = Column(Integer)
 
 Base.metadata.create_all(engine)
