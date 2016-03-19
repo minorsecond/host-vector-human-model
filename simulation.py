@@ -403,6 +403,10 @@ def simulation():
     """
 
     # TODO: Create backup_table function and use here.
+    # TODO: Auto end simulation if infections end
+    # TODO: Fix total exposed counter
+    # TODO: Break down simulation by subregion, to allow for GIS analysis.
+
     rowNum = 1
     day = 1
 
@@ -410,12 +414,10 @@ def simulation():
     vector_list = []
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
-    susceptible_count = initial_susceptible_humans
-    exposed_count = 0
-    recovered_count = 0
+    input(initial_susceptible_humans)
     nInfectedVectors = 1
     nSuscVectors = 1
-    infected_count = session.query(Humans).filter_by(infected='True').count()
+    # infected_count = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
     total_exposed = 0
 
@@ -458,9 +460,11 @@ def simulation():
 
     try:
         for d in range(days_to_run):  # TODO: Finish this next.
-            clear_screen()
-            print("Epidemiological Model Running\n")
-            print("Simulating day {0} of {1}".format(d, days_to_run))
+
+            susceptible_count = 0
+            exposed_count = 0
+            infected_count = 0
+            recovered_count = 0
 
             # Run human-human interactions
             for r in id_list:
@@ -471,8 +475,6 @@ def simulation():
                     if person_a['dayOfExp'] >= latent_period:
                         person_a['exposed'] = 'False'
                         person_a['infected'] = 'True'
-                        exposed_count -= 1
-                        infected_count += 1
 
                     else:
                         person_a['dayOfExp'] += 1
@@ -489,10 +491,7 @@ def simulation():
 
                         person_b['exposed'] = 'True'
                         person_b['susceptible'] = 'False'
-                        total_exposed += 1
-                        susceptible_count += - 1
-                        exposed_count += 1
-                        person_b['dayOfInf'] += 1
+
                     i += 1
 
                 if person_a['dayOfInf'] >= infectious_period:
@@ -500,16 +499,13 @@ def simulation():
                         person_a['infected'] = 'False'
                         if random.uniform(0, 1) < death_chance:
                             person_a['dead'] = 'True'
-                            infected_count -= 1
+
                         else:
                             person_a['recovered'] = 'True'
-                            infected_count -= 1
-                            recovered_count += 1
+
                     else:
                         person_a['infected'] = 'False'
                         person_a['recovered'] = 'True'
-                        infected_count -= 1
-                        recovered_count += 1
 
                     person_a['dayOfInf'] += 1
 
@@ -526,16 +522,33 @@ def simulation():
                     if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(0, 1) < beta:
                         person['susceptible'] = 'False'
                         person['exposed'] = 'True'
-                        exposed_count += 1
-                        total_exposed += 1
-                        susceptible_count -= 1
 
                     elif person['infected'] == 'True' and vector['susceptible'] == 'True':
                         vector['susceptible'] = 'False'
                         vector['infected'] = 'True'
-                        nInfectedVectors += 1
-                        nSuscVectors -= 1
                     i += 1
+
+            for person in id_list:  # Get the count for each bin, each day.
+                if population.get(person)['susceptible'] == 'True':
+                    susceptible_count += 1
+
+                elif population.get(person)['exposed'] == 'True':
+                    exposed_count += 1
+                    total_exposed += 1
+
+                elif population.get(person)['infected'] == 'True':
+                    infected_count += 1
+
+                elif population.get(person)['recovered'] == 'True':
+                    recovered_count += 1
+
+            # clear_screen()
+            print("Epidemiological Model Running\n")
+            print("Simulating day {0} of {1}".format(d, days_to_run))
+            print("Susceptible: {0} | Exposed: {1} | Infected: [2} | Recovered: {3}".format(susceptible_count,
+                                                                                            exposed_count,
+                                                                                            infected_count,
+                                                                                            recovered_count))
 
             log_entry = Log(Day=d + 1,
                             nSusceptible=susceptible_count,
@@ -546,6 +559,7 @@ def simulation():
                             nBirthInfections='NULL')
             session.add(log_entry)
             day += 1
+            print("{}:{}".format(exposed_count, total_exposed))
         session.commit()
 
         clear_screen()
@@ -556,7 +570,7 @@ def simulation():
               "- Population Not Exposed: {3}\n".format(days_to_run,
                                                        total_exposed,
                                                        round((total_exposed / days_to_run), 2),
-                                                       initial_susceptible_humans - total_exposed))
+                                                       number_humans - total_exposed))
 
         # Update the log entry for the day. Might want to build in a dictionary first and then
         # update the table at end of simulation.
