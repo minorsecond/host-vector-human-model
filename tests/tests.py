@@ -72,7 +72,7 @@ class testPointInPolygon(unittest.TestCase):
         self.assertTrue(point_in_poly(point_x, point_y, polygon))
 
     def test_outside(self):
-        polygon = [(0, 10), (10, 10), (10, 0), (0, 0)]
+        polygon = [[0, 10], [10, 10], [10, 0], [0, 0]]
 
         point_x = 0
         point_y = 5

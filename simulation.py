@@ -102,6 +102,33 @@ def point_in_poly(x, y, poly):
     return inside
 
 
+def create_bboxes(list_coordinates):
+    """
+    Creates bounding boxes based on SW and NE coordinates
+    """
+
+    # Create bounding boxes to estimate location before pinpointing, to speed it up.
+    sw_x = float(list_coordinates[0])
+    sw_y = float(list_coordinates[1])
+    sw = (sw_x, sw_y)
+
+    ne_x = float(list_coordinates[2])
+    ne_y = float(list_coordinates[3])
+    ne = (ne_x, ne_y)
+
+    nw_x = sw_x
+    nw_y = ne_y
+    nw = (nw_x, nw_y)
+
+    se_x = ne_x
+    se_y = sw_y
+    se = (se_x, se_y)
+
+    bounding_box = [sw, nw, ne, se]
+
+    return bounding_box
+
+
 def build_population():
     """
     Builds population with parameters
@@ -110,14 +137,20 @@ def build_population():
 
     subregions_list = []
 
-    in_subregion_data = os.path.join(working_directory, 'subregions.csv')
-    sub_regions_dict = sub_regions(in_subregion_data)
+    #in_subregion_data = os.path.join(working_directory, 'subregions.csv')
+    in_subregion_data = os.path.join(working_directory)
+    sub_regions_dict = shape_subregions(in_subregion_data)
     clear_screen()
     print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
     for i in sub_regions_dict:
-        subregion = i  # subregion ID
-        pop = sub_regions_dict[i].get('pop')  # grab population from subregion dict
+        subregion = i['id']  # subregion ID
+        pop = int(i['population'])  # grab population from subregion dict
+
+        bbox = create_bboxes(i['bbox'])
+
+        input(bbox)
+
 
         population = dict(
             (x, {
@@ -137,8 +170,8 @@ def build_population():
                 # 'dayOfRec': 0,
                 'recState': 0,
                 'resistant': 'False',
-                'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
-                'y': np.random.uniform(2098719.000, 2147597.000)
+                'x': 'NULL',  # Extents for Tarrant county, TX
+                'y': 'NULL'
 
             }) for x in range(pop)
         )
@@ -188,8 +221,8 @@ def build_vectors():
                 'exposed': 'False',
                 'infected': 'False',
                 'removed': 'False',
-                'x': np.random.uniform(689141.000, 737293.000),  # Extents for Tarrant county, TX
-                'y': np.random.uniform(2098719.000, 2147597.000)
+                'x': 'NULL',  # Extents for Tarrant county, TX
+                'y': 'NULL'
             }) for x in range(vector_pop)
         )
 
@@ -234,6 +267,19 @@ def sub_regions(filename):
         )
 
     return subregion
+
+
+def shape_subregions(wd):
+    """
+    Read CSV
+    :param filename: CSV filename
+    :return: Dict of subregions
+    """
+
+    subregion = {}
+    sub_list = subregion_list_of_lists_generators(wd)
+
+    return sub_list
 
 
 def writer(filename, line):
@@ -760,19 +806,14 @@ def simulation():  #TODO: This needs to be refactored.
         main_menu()
 
 
-def point_generator(wd):
+def subregion_list_of_lists_generators(wd):
     """
     Generates random points based on coordinates and subregion DI
     """
+    records = point_creator.grab_vertices(wd + '/subregions')  # Load subregions shapefile
+    # TODO:  Create function to iterate through subregion ids, create points, and feed them to the point_in_poly
 
-    try:
-        records = point_creator.shapefile_reader(working_directory + '/subregions')  # Load subregions shapefile
-        # TODO:  Create function to iterate through subregion ids, create points, and feed them to the point_in_poly
-        for rec in records:
-            input(rec['Subregion'])
-
-    except:
-        main_menu()
+    return records
 
 
 def setupDB():
@@ -983,11 +1024,6 @@ def create_config_file():
                     working_directory = input("Working directory (All files must be in this path): ")
 
                 point_generator(working_directory)
-
-                except NameError:
-                    input("Is shapefile named 'subregions_shapedata?' Double-check and try again. "
-                          "Press enter to return to the main menu.")
-                    main_menu()
 
             if answer.startswith('6'):
                 main_menu()

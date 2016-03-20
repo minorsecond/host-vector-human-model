@@ -28,21 +28,24 @@ def grab_vertices(filename):
     :return list of dictionaries containing an entry for each subregion
     """
     sf = shapefile.Reader(filename)
+    shapes = sf.shapes()
     shapeRecs = sf.shapeRecords()
     list_of_subregions = []
 
 
-    for i in range(len(list)):
+    for i in range(len(shapeRecs)):
         id = shapeRecs[i].record[1:2]
+        bbox = shapes[i].bbox
         points = shapeRecs[i].shape.points[:]  # Make a list of all points for the polygon
         population = shapeRecs[i].record[2:3]
         area = shapeRecs[i].record[3:4]
 
         subregion = {
-            'id':           id,
+            'id':           id[0],
+            'bbox':         bbox,
             'vertices':     points,
-            'area':         area,
-            'population':   population
+            'area':         area[0],
+            'population':   population[0]
         }
 
         list_of_subregions.append(subregion)
