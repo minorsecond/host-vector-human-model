@@ -542,12 +542,10 @@ def simulation():  #TODO: This needs to be refactored.
                 if vectors.get(v)['birthday'] == day and \
                                 vectors.get(v)['alive'] == 'False' and \
                                 vectors.get(v)['removed'] == 'False':  # Number of vectors varies each day
-                    vector_list.append(v)
                     vectors.get(v)['alive'] = 'True'
                     vectors.get(v)['susceptible'] = 'True'
 
-                elif vectors.get(v)['alive'] == 'True':
-                    vector_list.append(v)
+                vector_list.append(v)
 
             if day == 0:  # Start log at day 0
                 # susceptible_count = session.query(Humans).filter_by(and_(susceptible='True',
