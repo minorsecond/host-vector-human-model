@@ -14,3 +14,6 @@ def reader(name, fid):
     shapes = features.shapeRecords()  # We want the points from this, from a certain feature ID
 
     #TODO: Make a list of all block groups in shapefile, and iterate through each one, building a dict of points for each group
+
+    points = shapes[3].shape.points[0:2]  # Will need to change this depending on my shape data.
+
