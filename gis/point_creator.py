@@ -14,11 +14,40 @@ def shapefile_reader(name):
     """
 
     features = shapefile.Reader(name)
-    fields = features.fields[0:]
+    fields = features.fields[1:]
     field_names = [field[0] for field in fields]
 
     for sr in features.shapeRecords():
         yield dict(zip(field_names, sr.record))
+
+
+def grab_vertices(filename):
+    """
+    Gets vertices of polygons for creating points
+    :param list: A list of subregion IDs for which to obtain verticies
+    :return list of dictionaries containing an entry for each subregion
+    """
+    sf = shapefile.Reader(filename)
+    shapeRecs = sf.shapeRecords()
+    points = []
+    list_of_subregions = []
+
+
+    for i in range(len(list)):
+        id = shapeRecs[i].record[1:2]
+        points.append(shapeRecs[i].shape.points[:])  # Make a list of all points for the polygon
+        population = shapeRecs[i].record[2:3]
+        area = shapeRecs[i].record[3:4]
+        subregion = {
+            'id':           id,
+            'vertices':     points,
+            'area':         area,
+            'population':   population
+        }
+
+        list_of_subregions.append(subregion)
+
+        return list_of_subregions
 
 if __name__ == '__main__':
     shapefile_reader()

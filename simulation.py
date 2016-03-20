@@ -760,6 +760,21 @@ def simulation():  #TODO: This needs to be refactored.
         main_menu()
 
 
+def point_generator(wd):
+    """
+    Generates random points based on coordinates and subregion DI
+    """
+
+    try:
+        records = point_creator.shapefile_reader(working_directory + '/subregions')  # Load subregions shapefile
+        # TODO:  Create function to iterate through subregion ids, create points, and feed them to the point_in_poly
+        for rec in records:
+            input(rec['Subregion'])
+
+    except:
+        main_menu()
+
+
 def setupDB():
     """
     Set up the sqlite DB
@@ -967,9 +982,8 @@ def create_config_file():
                 if not working_directory_set:
                     working_directory = input("Working directory (All files must be in this path): ")
 
-                try:
-                    records = point_creator.shapefile_reader(working_directory + '/subregions_shapedata') # Load subregions shapefile
-                    #TODO:  Create function to iterate through subregion ids, create points, and feed them to the point_in_poly
+                point_generator(working_directory)
+
                 except NameError:
                     input("Is shapefile named 'subregions_shapedata?' Double-check and try again. "
                           "Press enter to return to the main menu.")
