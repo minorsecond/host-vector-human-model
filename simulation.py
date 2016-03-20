@@ -22,6 +22,7 @@ from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log
+from gis import point_creator
 
 global working_directory_set
 working_directory_set = False
@@ -870,6 +871,8 @@ def create_config_file():
     disease_parameters_set = 'Not Set'
     config = configparser.ConfigParser()
 
+    global working_directory
+
     while True:
         try:
             """Main menu for program. Prompts user for function."""
@@ -881,7 +884,8 @@ def create_config_file():
                   "3. Vector Population Parameters - {2}\n"
                   "4. Disease Parameters - {3}\n"
                   "5. Write Config File\n"
-                  "6. Main Menu\n".format(simulation_parameters_set,
+                  "6. Read ESRI Shapefile\n"
+                  "7. Main Menu\n".format(simulation_parameters_set,
                                           host_population_settings_set,
                                           vector_population_settings_set,
                                           disease_parameters_set))
@@ -958,6 +962,18 @@ def create_config_file():
             if answer.startswith('5'):
                 with open('simulation.cfg', 'a') as configfile:
                     config.write(configfile)
+
+            if answer.startswith('6'):
+                if not working_directory_set:
+                    working_directory = input("Working directory (All files must be in this path): ")
+
+                try:
+                    records = point_creator.shapefile_reader(working_directory + '/subregions_shapedata') # Load subregions shapefile
+                    #TODO:  Create function to iterate through subregion ids, create points, and feed them to the point_in_poly
+                except NameError:
+                    input("Is shapefile named 'subregions_shapedata?' Double-check and try again. "
+                          "Press enter to return to the main menu.")
+                    main_menu()
 
             if answer.startswith('6'):
                 main_menu()
