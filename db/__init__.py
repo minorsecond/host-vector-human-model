@@ -64,6 +64,7 @@ class Log(Base):
     """
     __tablename__ = "Log"
     id = Column(Integer, primary_key=True)
+    Subregion = Column(String)
     Day = Column(Integer)
     nSusceptible = Column(Integer)
     nExposed = Column(Integer)

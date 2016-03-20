@@ -1,8 +1,11 @@
 """
+2016 - Robert Ross Wardrup
 A SEIR simulation that uses SQLite and CSV Census files to define population paramaters
+Please run this on a rotating hard drive - building large
 """
 
 # TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
+# TODO: Method to allow cross-subregion exposure (based off euclidian distance)
 # TODO: Read and write config file
 # TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins. Maybe use a sine.
 
@@ -20,6 +23,9 @@ from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log
 
+global working_directory_set
+working_directory_set = False
+
 # Simulation parameters
 days_to_run = 365
 random.seed(5)
@@ -27,13 +33,13 @@ random.seed(5)
 # Epidemic parameters
 causes_death = False
 death_chance = .001
-beta = 0.01
+beta = 0.05
 gamma = .3  # TODO: See how this interacts with infectious period.
 sigma = .35  # TODO: See how this interacts with infectious period.
 mu = .1
 theta = .1  # mother -> child transmission
 birthrate = 0  # birth rate
-kappa = .005  # sexual contact
+kappa = .02  # sexual contact
 zeta = .1  # blood transfusion
 tau = 1  # chance a mosquito picks up zika from human
 infectious_period = 5
@@ -44,14 +50,16 @@ initial_susceptible = 750000  # Unused with subregions file
 initial_exposed = 0
 initial_infected = 1
 contact_rate = 1
-number_of_importers = 20  # number of people to bring back disease from foreign lands, over the study period
+number_of_importers = 25  # number of people to bring back disease from foreign lands, over the study period
 bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
-mosquito_susceptible_coef = 200  # mosquitos per square kilometer
+mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 biting_rate = 3  # average bites per day
+mosquito_season_start = 78
+mosquito_season_end = 266
 
 
 def prompt(question):
@@ -129,8 +137,8 @@ def build_vectors():
     """
     subregions_list = []
     infected_vectors = 0
-    mosquito_season_start = int(input("Start day of mosquito season: "))
-    mosquito_season_end = int(input("End day of mosquito season: "))
+    # mosquito_season_start = int(input("Start day of mosquito season: "))
+    # mosquito_season_end = int(input("End day of mosquito season: "))
     mosquito_season = range(mosquito_season_start, mosquito_season_end)
 
     in_subregion_data = os.path.join(working_directory, 'subregions.csv')
@@ -252,7 +260,7 @@ def output_status(n, total):
     return (n / total) * 100
 
 
-def build_population_files(directory, tableToBuild):
+def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
     # while header_count == 0:
@@ -426,7 +434,7 @@ def build_population_files(directory, tableToBuild):
                     )
 
                     session.add(new_vector)
-            session.commit()
+                session.commit()
             del vector[:]
             input("Vector population table successfully built. Press enter to return to main menu.")
     except KeyboardInterrupt:
@@ -439,7 +447,8 @@ def euclidian():
     :return:
     """
 
-def simulation():
+
+def simulation():  #TODO: This needs to be refactored.
     """
     Simulation class
     :return:
@@ -455,8 +464,10 @@ def simulation():
     day = 0
     converged = False
     id_list = []
+    subregion_list = []
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
+    initial_susceptible_vectors = session.query(Vectors).filter_by(susceptible='True').count()
     nInfectedVectors = 1
     nSuscVectors = 1
     # infected_count = session.query(Humans).filter_by(infected='True').count()
@@ -489,6 +500,11 @@ def simulation():
 
     for p in population:
         id_list.append(p)
+        subregion = population.get(p)['subregion']
+
+        if subregion not in subregion_list:
+            subregion_list.append(subregion)
+
 
     vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
     vectors = dict(
@@ -518,6 +534,10 @@ def simulation():
             vector_removed_count = 0
             i = 0
 
+            # for p in population:
+            #    if population.get(p)['subregion'] == subregion:
+            #        id_list.append(p)
+
             for v in vectors:
                 if vectors.get(v)['birthday'] == day and \
                                 vectors.get(v)['alive'] == 'False' and \
@@ -530,18 +550,24 @@ def simulation():
                     vector_list.append(v)
 
             if day == 0:  # Start log at day 0
+                # susceptible_count = session.query(Humans).filter_by(and_(susceptible='True',
+                #                                                         subregion=subregion)).count()
                 log_entry = Log(Day=day,
-                                nSusceptible=susceptible_count,
+                                nSusceptible=initial_susceptible_humans,
                                 nExposed=exposed_count,
                                 nInfected=infected_count,
                                 nRecovered=recovered_count,
                                 nDeaths='NULL',
-                                nBirthInfections='NULL')
+                                nBirthInfections='NULL',
+                                nInfectedVectors=vector_infected_count,
+                                nSuscVectors=initial_susceptible_vectors,
+                                nRemovedVectors=vector_removed_count)
                 session.add(log_entry)
                 session.commit()
 
             # Run human-human interactions
             for r in id_list:
+                # if population.get(r)['subregion'] == subregion:
                 person_a = population.get(r)
                 contact_counter = 0
                 person_a['biteCount'] = 0
@@ -597,10 +623,13 @@ def simulation():
             # Run mosquito-human interactions
             for v in vector_list:
                 i = 0
+                # if vectors.get(r)['subregion'] == subregion:
                 vector = vectors.get(v)
                 while i < biting_rate and biteable_humans > 0:
 
                     pid = random.choice(id_list)  # Pick a human to bite
+                    # while population.get(pid)['subregion'] != subregion:
+
                     # while population.get(pid)['biteCount'] >= bite_limit:
                     #    pid = random.choice(id_list)  # Pick a human to bite
                     person = population.get(pid)
@@ -656,16 +685,17 @@ def simulation():
             print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(day, days_to_run))
             print("\n---------------------------------"
-                  "\n|Susceptible hosts:    {0}     |"
-                  "\n|Exposed hosts:        {1}     |"
-                  "\n|Infected hosts:       {2}     |"
-                  "\n|Recovered hosts:      {3}     |"
-                  "\n|==============================|"
-                  "\n|Susceptible vectors:  {4}     |"
-                  "\n|Infected vectors:     {5}     |"
-                  "\n|Removed vectors:      {6}     |"
+                  "\nSusceptible hosts:    {0}     "
+                  "\nExposed hosts:        {1}     "
+                  "\nInfected hosts:       {2}     "
+                  "\nRecovered hosts:      {3}     "
+                  "\n=============================="
+                  "\nSusceptible vectors:  {4}     "
+                  "\nInfected vectors:     {5}     "
+                  "\nRemoved vectors:      {6}     "
                   "\n--------------------------------"
-                  .format(susceptible_count, exposed_count, infected_count, recovered_count, vector_susceptible_count,
+                  .format(susceptible_count, exposed_count, infected_count, recovered_count,
+                          vector_susceptible_count,
                           vector_infected_count, vector_removed_count))
 
             log_entry = Log(Day=day + 1,
@@ -673,8 +703,8 @@ def simulation():
                             nExposed=exposed_count,
                             nInfected=infected_count,
                             nRecovered=recovered_count,
-                            nDeaths='NULL',
-                            nBirthInfections='NULL',
+                            nDeaths='0',
+                            nBirthInfections='0',
                             nInfectedVectors=vector_infected_count,
                             nSuscVectors=vector_susceptible_count,
                             nRemovedVectors=vector_removed_count)
@@ -716,9 +746,8 @@ def setupDB():
     """
 
     global working_directory
+    global working_directory_set
     global session
-
-    working_directory = input("Path to subregions.csv: ")
 
     engine = create_engine('sqlite:///simulation.epi')
     DBSession = sessionmaker(bind=engine)
@@ -831,7 +860,8 @@ def create_config_file():
                   "2. Host Population Parameters - {1}\n"
                   "3. Vector Population Parameters - {2}\n"
                   "4. Disease Parameters - {3}\n"
-                  "5. Main Menu\n".format(simulation_parameters_set,
+                  "5. Write Config File\n"
+                  "6. Main Menu\n".format(simulation_parameters_set,
                                           host_population_settings_set,
                                           vector_population_settings_set,
                                           disease_parameters_set))
@@ -845,12 +875,9 @@ def create_config_file():
 
                 config['SIMULATION PARAMETERS'] = {
                     'RandomSeed': input("Random seed: "),
-                    'DaysToRun': input("\nDays to run simulation: "),
+                    'DaysToRun': input("Days to run simulation: "),
                     'Seasonality': prompt("Seasonality in vector poulation?: ")
                 }
-
-                with open('simulation.cfg', 'a') as configfile:
-                    config.write(configfile)
 
                 simulation_parameters_set = 'Set'
 
@@ -861,14 +888,12 @@ def create_config_file():
 
                 config["HOST POPULATION PARAMETERS"] = {
                     'initial_exposed': input("Number of hosts to expose before model begins: "),
-                    'initial_infected': input("\nNumber of hosts to infect before model begins: "),
-                    'contact_rate': input("\nNumber of contacts per day, per host: "),
-                    'imports': prompt("\nAllow individuals to import disease from elsewhere?"),
-                    'nImporters': input("\nIf so, how many importers?: ")
+                    'initial_infected': input("Number of hosts to infect before model begins: "),
+                    'contact_rate': input("Number of contacts per day, per host: "),
+                    'imports': prompt("Allow individuals to import disease from elsewhere?"),
+                    'nImporters': input("If so, how many importers?: "),
+                    'bite_limit': input("How many times is each host allowed to be bitten by a mosquito per day?: ")
                 }
-
-                with open('simulation.cfg', 'a') as configfile:
-                    config.write(configfile)
 
                 host_population_settings_set = 'Set'
 
@@ -879,15 +904,12 @@ def create_config_file():
 
                 config['VECTOR POPULATION PARAMETERS'] = {
                     'mosquito_susceptible_coef': input("Mosquitos per square kilometer: "),
-                    'mosquito_exposed': input("\nNumber of vectors to expose before model begins: "),
-                    'mosquito_init_infected': input("\nNumber of vectors to infect before model begins: "),
-                    'biting_rate': input("\nNumber of humans each mosquito bites per day: "),
-                    'season_start': input("\nWhat day will mosquito season begin?: "),
-                    'season_end': input("\nWhat day will mosquito season end?: ")
+                    'mosquito_exposed': input("Number of vectors to expose before model begins: "),
+                    'mosquito_init_infected': input("Number of vectors to infect before model begins: "),
+                    'biting_rate': input("Number of humans each mosquito bites per day: "),
+                    'season_start': input("What day will mosquito season begin?: "),
+                    'season_end': input("What day will mosquito season end?: ")
                 }
-
-                with open('simulation.cfg', 'a') as configfile:
-                    config.write(configfile)
 
                 vector_population_settings_set = 'Set'
 
@@ -898,36 +920,117 @@ def create_config_file():
 
                 config['EPIDEMIC PARAMETERS'] = {
                     'causes_death': prompt("Can disease end in death?"),
-                    'death_chance': input("\nIf disease can cause death, what is the probability (0-1)?: "),
-                    'beta': input("\nWhat is the beta value (probability of infection)?: "),
-                    'gamma': input("\nWhat is the gamma value (Rate at which infected moves to recovery)?: "),
-                    'sigma': input("\nWhat is the sigma value (Rate at which an exposed person becomes infective)?: "),
-                    'mu': input("\nWhat is the mu value (Natural mortality rate)?: "),
-                    'theta': input("\nWhat is the theta value (perinatal transmission rate)?: "),
-                    'kappa': input("\nWhat is the kappa value (sexual contact transmission rate)?: "),
-                    'infectious_period': input("\nHow long is the disease infectious period, in days?: "),
-                    'latent_period': input("\nHow long is the disease latent period, in days?: ")
+                    'death_chance': input("If disease can cause death, what is the probability (0-1)?: "),
+                    'beta': input("What is the beta value (probability of infection)?: "),
+                    'gamma': input("What is the gamma value (Rate at which infected moves to recovery)?: "),
+                    'sigma': input("What is the sigma value (Rate at which an exposed person becomes infective)?: "),
+                    'mu': input("What is the mu value (Natural mortality rate)?: "),
+                    'theta': input("What is the theta value (perinatal transmission rate)?: "),
+                    'kappa': input("What is the kappa value (sexual contact transmission rate)?: "),
+                    'zeta': input("What is the zeta value (transfusion transmission rate)?: "),
+                    'tau': input("What is the tau value (human to vector transmission rate)?: "),
+                    'infectious_period': input("How long is the disease infectious period, in days?: "),
+                    'latent_period': input("How long is the disease latent period, in days?: ")
                 }
-
-                with open('simulation.cfg', 'a') as configfile:
-                    config.write(configfile)
 
                 disease_parameters_set = 'Set'
 
             if answer.startswith('5'):
+                with open('simulation.cfg', 'a') as configfile:
+                    config.write(configfile)
+
+            if answer.startswith('6'):
                 main_menu()
 
         except KeyboardInterrupt:
             main_menu()
 
 
+def read_config_section(section, bool):
+    "Read section of file using configparser"
+    config_dict = {}
+    options = config.options(section)
 
-def main_menu():
+    for option in options:
+        if bool:
+            try:
+                config_dict[option] = config.getboolean(section, option)
+                if config_dict[option] == -1:
+                    DebugPrint("skip: {}".format(option))
+            except:
+                print("Exception on {}".format(option))
+                config_dict = None
+            return config_dict
+
+        else:
+            try:
+                config_dict[option] = config.get(section, option)
+                if config_dict[option] == -1:
+                    DebugPrint("skip: {}".format(option))
+            except:
+                print("Exception on {}".format(option))
+                config_dict = None
+
+            return config_dict
+
+
+def read_config_file():
     """
-    The main menu of options
+    Reads configuration file
     :return:
     """
 
+    config.read('simulation.cfg')
+
+    # Simulation parameters
+    days_to_run = read_config_section('SIMULATION PARAMETERS', False)['daystorun']
+    random_seed = read_config_section('SIMULATION PARAMETERS', False)['randomseed']
+    seasonality = read_config_section('SIMULATION PARAMETERS', True)['seasonality']
+
+    # Epidemic parameters
+    causes_death = read_config_section("EPIDEMIC PARAMETERS", True)['causes_death']
+    death_chance = read_config_section("EPIDEMIC PARAMETERS", False)['death_chance']
+    latent_period = read_config_section("EPIDEMIC PARAMETERS", False)['latent_period']
+    kappa = read_config_section("EPIDEMIC PARAMETERS", False)['kappa']
+    sigma = read_config_section("EPIDEMIC PARAMETERS", False)['sigma']
+    theta = read_config_section("EPIDEMIC PARAMETERS", False)['theta']
+    gamma = read_config_section("EPIDEMIC PARAMETERS", False)['gamma']
+    mu = read_config_section("EPIDEMIC PARAMETERS", False)['mu']
+    infectious_period = read_config_section("EPIDEMIC PARAMETERS", False)['beta']
+    beta = read_config_section("EPIDEMIC PARAMETERS", True)['causes_death']
+    zeta = read_config_section("EPIDEMIC PARAMETERS", False)['zeta']
+    tau = read_config_section("EPIDEMIC PARAMETERS", False)['tau']
+    infectious_period = read_config_section("EPIDEMIC PARAMETERS", False)['infectious_period']
+    latent_period = read_config_section("EPIDEMIC PARAMETERS", False)['latent_period']
+
+    # Host population parameters
+    initial_exposed = read_config_section("HOST POPULATION PARAMETERS", False)['initial_exposed']
+    initial_infected = read_config_section("HOST POPULATION PARAMETERS", False)['initial_infected']
+    contact_rate = read_config_section("HOST POPULATION PARAMETERS", False)['contact_rate']
+    number_of_importers = read_config_section("HOST POPULATION PARAMETERS", False)['number_of_importers']
+    bite_limit = read_config_section("HOST POPULATION PARAMETERS", False)['bite_limit']
+
+    # Vector population parameters
+    mosquito_susceptible_coef = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
+        'mosquito_susceptible_coef']
+    mosquito_init_infectd = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
+        'mosquito_init_infected']
+    biting_rate = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['biting_rate']
+    mosquito_exposed = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
+        'mosquito_exposed']
+    season_start = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['season_start']
+    season_end = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['season_end']
+
+
+def config_menu():
+    """
+    Menu to call configuration methods
+    :return:
+    """
+
+    global config
+    global working_directory
+    global working_directory_set
     config = configparser.ConfigParser()
 
     while True:
@@ -936,48 +1039,75 @@ def main_menu():
             clear_screen()
             print("Python Epidemiological Model\n\n"
                   "What would you like to do?\n"
-                  "1. Build Population Data\n"
-                  "2. Build Vector Data\n"
-                  "3. Load Existing Tables\n"
-                  "4. Drop Human Tables\n"
-                  "5. Drop Vector Tables\n"
-                  "6. Run Simulation\n"
-                  "7. Quit\n"
-                  "8. Model Settings\n")
+                  "1. Create configuration\n"
+                  "2. Load configuration\n"
+                  "3. Load existing tables\n"
+                  "4. Build host data\n"
+                  "5. Build vector data\n"
+                  "6. Main menu\n")
 
             answer = input(">>> ")
 
             if answer.startswith('1'):
-                setupDB()
-                build_population_files(working_directory, 'Humans')
+                create_config_file()
 
             if answer.startswith('2'):
-                setupDB()
-                build_population_files(working_directory, 'Vectors')
+                session = read_config_file()
 
             if answer.startswith('3'):
-                session = read_db()
+                read_db()
 
             if answer.startswith('4'):
-                drop_table('Humans')
+                if not working_directory_set:
+                    working_directory = input("Path to subregions.csv: ")
+                    working_directory_set = True
+                setupDB()
+
+                build_population_files(working_directory, 'Humans')
 
             if answer.startswith('5'):
-                drop_table('Vectors')
+                if not working_directory_set:
+                    working_directory = input("Path to subregions.csv: ")
+                    working_directory_set = True
+                setupDB()
+
+                build_population_files(working_directory, 'Vectors')
 
             if answer.startswith('6'):
+                main_menu()
+
+        except KeyboardInterrupt:
+            main_menu()
+
+
+def main_menu():
+    """
+    The main menu of options
+    :return:
+    """
+
+    working_directory_set = False
+
+    while True:
+        try:
+            """Main menu for program. Prompts user for function."""
+            clear_screen()
+            print("Python Epidemiological Model\n\n"
+                  "What would you like to do?\n"
+                  "1. Configure Simulation\n"
+                  "2. Run Simulation\n"
+                  "3. Quit\n")
+
+            answer = input(">>> ")
+
+            if answer.startswith('1'):
+                config_menu()
+
+            if answer.startswith('2'):
                 simulation()
-                # try:
-                #    simulation()
-                # except NameError:
-                #    clear_screen()
-                #    input("Database not loaded. Press enter to return to the main menu.")
-                #    main_menu()
 
-            if answer.startswith('7'):
+            if answer.startswith('3'):
                 die()
-
-            if answer.startswith('8'):
-                create_config_file()
 
         except KeyboardInterrupt:
             main_menu()
