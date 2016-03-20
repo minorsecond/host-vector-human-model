@@ -18,3 +18,4 @@ def reader(name, fid):
 
     points = shapes[3].shape.points[0:2]  # Will need to change this depending on my shape data.
 
+    
