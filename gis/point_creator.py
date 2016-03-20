@@ -1,5 +1,6 @@
 """
-Read ESRI shapefiles and grab vertex coordinates - for use in creating host and vector points
+Robert Ross Wardrup
+Create points and make sure they're within the subregion polygons.
 """
 
 import shapefile
