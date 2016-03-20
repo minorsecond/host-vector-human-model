@@ -18,14 +18,12 @@ class Humans(Base):
 
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True, index=True)
-    # uniqueID = Column(String)
+    uniqueID = Column(String)
+    linkedTo = Column(String)  # Link uniqueID to another uniqueID in table for relationships (sexual transmission)
     subregion = Column(String)
     importer = Column(Boolean)
     importDay = Column(Integer)
-    # age = Column(Integer)
-    # sex = Column(String)
     pregnant = Column(String)
-    # initial_susceptible = Column(Boolean)
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     exposed = Column(String, index=True)
@@ -33,10 +31,8 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    # dayOfRec = Column(Integer)
-    # resistant = Column(String)
-    # x = Column(String)
-    #y = Column(String)
+    x = Column(String)
+    y = Column(String)
 
 
 class Vectors(Base):
@@ -54,8 +50,8 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    # x = Column(String)
-    #y = Column(String)
+    x = Column(String)
+    y = Column(String)
 
 
 class Log(Base):
