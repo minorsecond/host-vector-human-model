@@ -685,14 +685,14 @@ def simulation():  #TODO: This needs to be refactored.
             print("Epidemiological Model Running\n")
             print("Simulating day {0} of {1}".format(day, days_to_run))
             print("\n---------------------------------"
-                  "\n|Susceptible hosts:    {0}     |"
-                  "\n|Exposed hosts:        {1}     |"
-                  "\n|Infected hosts:       {2}     |"
-                  "\n|Recovered hosts:      {3}     |"
-                  "\n|==============================|"
-                  "\n|Susceptible vectors:  {4}     |"
-                  "\n|Infected vectors:     {5}     |"
-                  "\n|Removed vectors:      {6}     |"
+                  "\nSusceptible hosts:    {0}     "
+                  "\nExposed hosts:        {1}     "
+                  "\nInfected hosts:       {2}     "
+                  "\nRecovered hosts:      {3}     "
+                  "\n=============================="
+                  "\nSusceptible vectors:  {4}     "
+                  "\nInfected vectors:     {5}     "
+                  "\nRemoved vectors:      {6}     "
                   "\n--------------------------------"
                   .format(susceptible_count, exposed_count, infected_count, recovered_count,
                           vector_susceptible_count,
