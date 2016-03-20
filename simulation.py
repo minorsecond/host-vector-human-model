@@ -467,6 +467,7 @@ def simulation():  #TODO: This needs to be refactored.
     subregion_list = []
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
+    initial_susceptible_vectors = session.query(Vectors).filter_by(susceptible='True').count()
     nInfectedVectors = 1
     nSuscVectors = 1
     # infected_count = session.query(Humans).filter_by(infected='True').count()
@@ -551,14 +552,16 @@ def simulation():  #TODO: This needs to be refactored.
             if day == 0:  # Start log at day 0
                 # susceptible_count = session.query(Humans).filter_by(and_(susceptible='True',
                 #                                                         subregion=subregion)).count()
-                log_entry = Log(  # Subregion=subregion,
-                    Day=day,
-                    nSusceptible=susceptible_count,
-                    nExposed=exposed_count,
-                    nInfected=infected_count,
-                    nRecovered=recovered_count,
-                    nDeaths='NULL',
-                    nBirthInfections='NULL')
+                log_entry = Log(Day=day,
+                                nSusceptible=initial_susceptible_humans,
+                                nExposed=exposed_count,
+                                nInfected=infected_count,
+                                nRecovered=recovered_count,
+                                nDeaths='NULL',
+                                nBirthInfections='NULL',
+                                nInfectedVectors=vector_infected_count,
+                                nSuscVectors=initial_susceptible_vectors,
+                                nRemovedVectors=vector_removed_count)
                 session.add(log_entry)
                 session.commit()
 
@@ -626,14 +629,12 @@ def simulation():  #TODO: This needs to be refactored.
 
                     pid = random.choice(id_list)  # Pick a human to bite
                     # while population.get(pid)['subregion'] != subregion:
-                    pid = random.choice(id_list)  #make sure human is in same subregion
 
                     # while population.get(pid)['biteCount'] >= bite_limit:
                     #    pid = random.choice(id_list)  # Pick a human to bite
                     person = population.get(pid)
 
-                    if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(0,
-                                                                                                           1) < beta:
+                    if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(0, 1) < beta:
                         person['susceptible'] = 'False'
                         person['exposed'] = 'True'
 
