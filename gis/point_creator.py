@@ -29,15 +29,15 @@ def grab_vertices(filename):
     """
     sf = shapefile.Reader(filename)
     shapeRecs = sf.shapeRecords()
-    points = []
     list_of_subregions = []
 
 
     for i in range(len(list)):
         id = shapeRecs[i].record[1:2]
-        points.append(shapeRecs[i].shape.points[:])  # Make a list of all points for the polygon
+        points = shapeRecs[i].shape.points[:]  # Make a list of all points for the polygon
         population = shapeRecs[i].record[2:3]
         area = shapeRecs[i].record[3:4]
+
         subregion = {
             'id':           id,
             'vertices':     points,
@@ -47,7 +47,7 @@ def grab_vertices(filename):
 
         list_of_subregions.append(subregion)
 
-        return list_of_subregions
+    return list_of_subregions
 
 if __name__ == '__main__':
     shapefile_reader()
