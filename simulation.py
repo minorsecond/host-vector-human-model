@@ -129,6 +129,34 @@ def create_bboxes(list_coordinates):
     return bounding_box
 
 
+def random_points(subregion_dictionary):
+    """
+    Random poitns within bounding box
+    """
+
+    bbox = create_bboxes(subregion_dictionary['bbox'])
+    poly = subregion_dictionary['vertices']
+
+    x_values = [x[0] for x in bbox]
+    x_min = min(x_values)
+    x_max = max(x_values)
+
+    y_values = [x[1] for x in bbox]
+    y_min = min(y_values)
+    y_max = max(y_values)
+
+    x = np.random.uniform(x_min, x_max)
+    y = np.random.uniform(y_min, y_max)
+
+    while not point_in_poly(x, y, poly):  # Make sure point does not fall outside subregion
+        x = np.random.uniform(x_min, x_max)
+        y = np.random.uniform(y_min, y_max)
+
+    coordinates = [x, y]
+
+    return coordinates
+
+
 def build_population():
     """
     Builds population with parameters
@@ -140,6 +168,7 @@ def build_population():
     #in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     in_subregion_data = os.path.join(working_directory)
     sub_regions_dict = shape_subregions(in_subregion_data)
+
     clear_screen()
     print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
 
@@ -147,17 +176,12 @@ def build_population():
         subregion = i['id']  # subregion ID
         pop = int(i['population'])  # grab population from subregion dict
 
-        bbox = create_bboxes(i['bbox'])
-
-        input(bbox)
-
-
         population = dict(
             (x, {
                 'uuid': str(uuid()),
                 'subregion': subregion,
                 'importer': False,  # Brings disease in from another place
-                'importDay': -999,
+                'importDay': None,
                 'age': random.randint(0, 99),
                 'sex': random.choice(['Male', 'Female']),
                 'pregnant': 'False',
@@ -167,12 +191,10 @@ def build_population():
                 'recovered': 'False',
                 'dayOfInf': 0,
                 'dayOfExp': 0,
-                # 'dayOfRec': 0,
                 'recState': 0,
                 'resistant': 'False',
-                'x': 'NULL',  # Extents for Tarrant county, TX
-                'y': 'NULL'
-
+                'x': random_points(i)[0],
+                'y': random_points(i)[1]
             }) for x in range(pop)
         )
 
@@ -198,16 +220,21 @@ def build_vectors():
     # mosquito_season_end = int(input("End day of mosquito season: "))
     mosquito_season = range(mosquito_season_start, mosquito_season_end)
 
-    in_subregion_data = os.path.join(working_directory, 'subregions.csv')
-    sub_regions_dict = sub_regions(in_subregion_data)
+    in_subregion_data = os.path.join(working_directory)
+    sub_regions_dict = sub_regions_dict = shape_subregions(in_subregion_data)
 
     clear_screen()
     print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
 
     for i in sub_regions_dict:
-        subregion = i
-        area = float(sub_regions_dict[i].get('area'))  # get area from dict
+        subregion = i['id']  # subregion ID
+        area = float(i['area'])  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
+
+        # Create random points
+        bbox = create_bboxes(i['bbox'])
+        poly = i['vertices']
+        x, y = random_points(bbox, poly)
 
         vector_population = dict(
             (x, {
@@ -221,8 +248,8 @@ def build_vectors():
                 'exposed': 'False',
                 'infected': 'False',
                 'removed': 'False',
-                'x': 'NULL',  # Extents for Tarrant county, TX
-                'y': 'NULL'
+                'x': random_points(i)[0],
+                'y': random_points(i)[1]
             }) for x in range(vector_pop)
         )
 
@@ -384,7 +411,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         importer_list.append(i)
 
                     new_human = Humans(
-                        # uniqueID=uniqueID,
+                        uniqueID=uniqueID,
                         subregion=subregion,
                         importer=importer,
                         importDay=importDay,
@@ -397,10 +424,8 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        #dayOfRec=dayOfRec,
-                        # resistant=resistant,
-                        # x=x,
-                        #y=y
+                        x=x,
+                        y=y
                     )
 
                     session.add(new_human)
@@ -436,7 +461,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
                 for i in range(number_of_importers + 1):  # Select importers randomly
                     importer = random.randint(1, len(population))
-                    while importer in infectList:
+                    while importer in infectList or importer in importer_list:
                         importer = random.randint(1, len(population))
                     importer_list.append(importer)
 
@@ -498,9 +523,9 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         lifetime=lifetime,
                         susceptible=susceptible,
                         infected=infected,
-                        removed=removed
-                        # x=x,
-                        #y=y
+                        removed=removed,
+                        x=x,
+                        y=y
                     )
 
                     session.add(new_vector)
@@ -1023,7 +1048,7 @@ def create_config_file():
                 if not working_directory_set:
                     working_directory = input("Working directory (All files must be in this path): ")
 
-                point_generator(working_directory)
+                subregion_list_of_lists_generators(working_directory)
 
             if answer.startswith('6'):
                 main_menu()
