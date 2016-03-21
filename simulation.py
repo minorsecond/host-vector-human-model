@@ -57,7 +57,7 @@ bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
 modified_mosquitos = False
-mosquito_susceptible_coef = 500  # mosquitos per square kilometer
+mosquito_susceptible_coef = 10  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 biting_rate = 3  # average bites per day
@@ -334,11 +334,6 @@ def output_status(n, total):
 def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
-    # while header_count == 0:
-    #    lineOut = ['Subregion ID:, Individual ID', 'Age', 'Sex', 'Pregnancy Status']
-    #    header_count = 1
-    #    writer(population_structure_file, lineOut)
-
     idList = []
     infectList = []
     importer_list = []
@@ -389,8 +384,6 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         subregion=subregion,
                         importer=importer,
                         importDay=importDay,
-                        # age=age,
-                        #sex=sex,
                         pregnant=pregnant,
                         susceptible=susceptible,
                         exposed=exposed,
@@ -431,6 +424,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                             session.commit()
 
             if number_of_importers > 0:
+                print("Setting up disease importers...")
                 importer_counter = 0  # If we're allowing random people to bring in disease from elsewhere
 
                 for i in range(number_of_importers + 1):  # Select importers randomly
@@ -455,43 +449,30 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
         elif tableToBuild == 'Vectors':
 
-            vector_structure_file = os.path.join(directory, 'vector_population.csv')
-            check_if_file_exists(vector_structure_file)
-
             clear_screen()
             print("Building vector population")
             sleep(5)
 
             vector = (build_vectors())
-            # header_count = 0
 
             for dictionary in vector:
                 for i in dictionary:
                     #uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
-                    range_ = dictionary[i].get('range')
+                    vector_range = dictionary[i].get('range')
                     alive = dictionary[i].get('alive')
                     birthday = dictionary[i].get('birthday')
                     lifetime = dictionary[i].get('lifetime')
                     susceptible = dictionary[i].get('susceptible')
-                    exposed = dictionary[i].get('exposed')
                     infected = dictionary[i].get('infected')
                     removed = dictionary[i].get('removed')
                     x = dictionary[i].get('x')
                     y = dictionary[i].get('y')
 
-                    # if header_count == 0:
-                    #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
-                    #    header_count = 1
-
-                    # else:
-                    # lineOut = [i, range, lifetime, x, y]
-                    # writer(vector_structure_file, lineOut)
-
                     new_vector = Vectors(
                         # uniqueID=uniqueID,
                         subregion=subregion,
-                        range=range_,
+                        vector_range=vector_range,
                         alive=alive,
                         birthday=birthday,
                         lifetime=lifetime,
@@ -507,57 +488,107 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
             del vector[:]
             input("Vector population table successfully built. Press enter to return to main menu.")
 
-        elif tableToBuild == 'vectorHumanLinks':  # Build links between host/vectors in links table
-
-            session = read_db()
-
-            row = session.query(Humans).yield_per(1000)  # This might be way more efficient
-            population = dict(
-                (r.id, {
-                    'id': r.id,
-                    'x': r.x,
-                    'y': r.y
-                }) for r in row
-            )
-
-            vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
-            vectors = dict(
-                (v.id, {
-                    'id': v.id,
-                    'range': v.range,
-                    'x': v.x,
-                    'y': v.y
-                }) for v in vectors
-            )
-
-            for vector in vectors:
-                vector_id = vectors.get(vector)['id']
-                range = vectors.get(vector)['range']  # These may need some work
-                vector_x = vectors.get(vector)['x']
-                vector_y = vectors.get(vector)['y']
-
-                vector_coordinates = [vector_x, vector_y]
-
-                for human in population:
-                    human_id = population.get(human)['id']
-                    human_x = population.get(human)['x']
-                    human_y = population.get(human)['y']
-
-                    human_coordinates = [human_x, human_y]
-
-                    if euclidian(vector_coordinates,
-                                 human_coordinates) < range:  # Add the relationship to the link table
-                        new_link = vectorHumanLinks(
-                            human_id=human_id,
-                            vector_id=vector_id
-                        )
-
-                        session.add(new_link)
-            session.commit()
-
     except KeyboardInterrupt:
         input("You interrupted me! Press enter to return to main menu.")
         main_menu()
+
+
+def build_vector_table():
+    """
+    Builds vector table in database
+    """
+
+    clear_screen()
+    print("Building vector population")
+    sleep(5)
+
+    vector = (build_vectors())
+
+    for dictionary in vector:
+        for i in dictionary:
+            # uniqueID = dictionary[i].get('uuid')
+            subregion = dictionary[i].get('subregion')
+            vector_range = dictionary[i].get('range')
+            alive = dictionary[i].get('alive')
+            birthday = dictionary[i].get('birthday')
+            lifetime = dictionary[i].get('lifetime')
+            susceptible = dictionary[i].get('susceptible')
+            exposed = dictionary[i].get('exposed')
+            infected = dictionary[i].get('infected')
+            removed = dictionary[i].get('removed')
+            x = dictionary[i].get('x')
+            y = dictionary[i].get('y')
+
+            new_vector = Vectors(
+                # uniqueID=uniqueID,
+                subregion=subregion,
+                range=vector_range,
+                alive=alive,
+                birthday=birthday,
+                lifetime=lifetime,
+                susceptible=susceptible,
+                infected=infected,
+                removed=removed,
+                x=x,
+                y=y
+            )
+
+            session.add(new_vector)
+        session.commit()
+    del vector[:]
+    input("Vector population table successfully built. Press enter to return to main menu.")
+
+
+def build_range_links():
+    """
+    Adds rows to links table based on host distance from vector
+    """
+
+    print("Loading host database into RAM...")
+    row = session.query(Humans).yield_per(1000)  # This might be way more efficient
+    population = dict(
+        (r.id, {
+            'id': r.id,
+            'x': r.x,
+            'y': r.y
+        }) for r in row
+    )
+
+    vectors = session.query(Vectors).yield_per(1000)
+    vectors = dict(
+        (v.id, {
+            'id': v.id,
+            'range': v.vector_range,
+            'x': v.x,
+            'y': v.y
+        }) for v in vectors
+    )
+
+    print("Creating links...")
+    for vector in vectors:
+        vector_id = vectors.get(vector)['id']
+        vector_range = vectors.get(vector)['range']  # These may need some work
+        vector_x = float(vectors.get(vector)['x'])
+        vector_y = float(vectors.get(vector)['y'])
+
+        vector_coordinates = [vector_x, vector_y]
+
+        for human in population:
+            human_id = population.get(human)['id']
+            human_x = float(population.get(human)['x'])
+            human_y = float(population.get(human)['y'])
+
+            human_coordinates = [human_x, human_y]
+
+            if euclidian(vector_coordinates,
+                         human_coordinates) < vector_range:  # Add the relationship to the link table
+                new_link = vectorHumanLinks(
+                    human_id=human_id,
+                    vector_id=vector_id
+                )
+
+                session.add(new_link)
+    session.commit()
 
 
 def euclidian(a, b):
@@ -568,7 +599,16 @@ def euclidian(a, b):
     :return: distance in whichever unit is provided to the function
     """
 
-    dist = numpy.linalg.norm(a - b)
+    x1 = a[0]
+    y1 = a[1]
+
+    x2 = b[0]
+    y2 = b[1]
+
+    a = np.array((x1, y1))
+    b = np.array((x2, y2))
+
+    dist = np.linalg.norm(a - b)
 
     return dist
 
@@ -1221,9 +1261,9 @@ def config_menu():
                 if not working_directory_set:
                     working_directory = input("Path to shape data: ")
                     working_directory_set = True
-                setupDB()
 
-                build_population_files(working_directory, 'vectorHumanLinks')
+                setupDB()
+                build_range_links()
 
             if answer.startswith('7'):
                 main_menu()

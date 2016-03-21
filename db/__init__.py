@@ -2,7 +2,7 @@
 SQLite database files
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, create_engine
+from sqlalchemy import Column, Integer, String, Boolean, Float, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('sqlite:///simulation.epi')
@@ -46,6 +46,7 @@ class Vectors(Base):
     subregion = Column(String)
     modified = Column(Boolean)
     alive = Column(String)
+    vector_range = Column(Float)
     birthday = Column(Integer)
     lifetime = Column(Integer)
     susceptible = Column(String, index=True)
