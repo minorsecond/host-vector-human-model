@@ -4,7 +4,9 @@ A SEIR simulation that uses SQLite and CSV Census files to define population par
 Please run this on a rotating hard drive - building large
 """
 
+# TODO: Switch all random calls to use numpy
 # TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
+# TODO: Output to shapefile
 # TODO: Method to allow cross-subregion exposure (based off euclidian distance)
 # TODO: Read and write config file
 # TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins. Maybe use a sine.
@@ -536,7 +538,7 @@ def build_vector_table():
             session.add(new_vector)
         session.commit()
     del vector[:]
-    input("Vector population table successfully built. Press enter to return to main menu.")
+    input("Vector population table successfully built. Press enter to return to menu.")
 
 
 def build_range_links():
@@ -544,7 +546,8 @@ def build_range_links():
     Adds rows to links table based on host distance from vector
     """
 
-    print("Loading host database into RAM...")
+    clear_screen()
+    print("\nLoading host database into RAM...")
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
     population = dict(
         (r.id, {
@@ -554,6 +557,7 @@ def build_range_links():
         }) for r in row
     )
 
+    print("Loading vector database into RAM...")
     vectors = session.query(Vectors).yield_per(1000)
     vectors = dict(
         (v.id, {
@@ -582,9 +586,12 @@ def build_range_links():
 
             if euclidian(vector_coordinates,
                          human_coordinates) < vector_range:  # Add the relationship to the link table
+                distance = euclidian(vector_coordinates, human_coordinates)
+
                 new_link = vectorHumanLinks(
                     human_id=human_id,
-                    vector_id=vector_id
+                    vector_id=vector_id,
+                    distance=distance
                 )
 
                 session.add(new_link)
@@ -1258,10 +1265,6 @@ def config_menu():
                 build_population_files(working_directory, 'Vectors')
 
             if answer.startswith('6'):
-                if not working_directory_set:
-                    working_directory = input("Path to shape data: ")
-                    working_directory_set = True
-
                 setupDB()
                 build_range_links()
 

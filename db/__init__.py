@@ -84,5 +84,6 @@ class vectorHumanLinks(Base):
     id = Column(Integer, primary_key=True)
     human_id = Column(Integer, index=True)
     vector_id = Column(Integer, index=True)
+    distance = Column(Float)
 
 Base.metadata.create_all(engine)
