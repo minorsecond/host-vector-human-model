@@ -59,7 +59,7 @@ bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
 modified_mosquitos = False
-mosquito_susceptible_coef = 10  # mosquitos per square kilometer
+mosquito_susceptible_coef = 1000  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 biting_rate = 3  # average bites per day
@@ -247,7 +247,7 @@ def build_vectors():
                 'uuid': str(uuid()),
                 'subregion': subregion,
                 'modified': modified,
-                'range': random.uniform(0, 500),  # 500 meters or so
+                'range': np.random.normal(90, 2),  # 90 meters or so
                 'alive': 'False',  # They come to life on their birthdays
                 'birthday': random.choice(mosquito_season),
                 'lifetime': random.normalvariate(15, 2),  # in days
@@ -368,7 +368,6 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     recovered = dictionary[i].get('recovered')
                     dayOfInf = dictionary[i].get('dayOfInf')
                     dayOfExp = dictionary[i].get('dayOfExp')
-                    resistant = dictionary[i].get('resistant')
                     x = dictionary[i].get('x')
                     y = dictionary[i].get('y')
 
@@ -407,7 +406,6 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 for i in range(initial_infected):
                     infectList.append(random.randint(1, len(population)))  # Select random person, by id, to infect
                 clear_screen()  # it's prettier
-                print("- Infecting {0} individuals to start the simulation.".format(initial_infected))
                 for i in infectList:
                     while initial_infection_counter < initial_infected:
                         for h in infectList:  # For each ID in the infected list,
@@ -431,7 +429,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
                 for i in range(number_of_importers + 1):  # Select importers randomly
                     importer = random.randint(1, len(population))
-                    while importer in infectList or importer in importer_list:
+                    while importer in infectList or importer in importer_list:  # Can't use already infected hosts
                         importer = random.randint(1, len(population))
                     importer_list.append(importer)
 
