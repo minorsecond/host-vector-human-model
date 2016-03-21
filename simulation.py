@@ -18,7 +18,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table
+from sqlalchemy import create_engine, MetaData, Table, and_
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log
@@ -495,7 +495,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 for i in dictionary:
                     #uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
-                    #range_ = dictionary[i].get('range')
+                    range_ = dictionary[i].get('range')
                     alive = dictionary[i].get('alive')
                     birthday = dictionary[i].get('birthday')
                     lifetime = dictionary[i].get('lifetime')
@@ -503,8 +503,8 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     exposed = dictionary[i].get('exposed')
                     infected = dictionary[i].get('infected')
                     removed = dictionary[i].get('removed')
-                    # x = dictionary[i].get('x')
-                    #y = dictionary[i].get('y')
+                    x = dictionary[i].get('x')
+                    y = dictionary[i].get('y')
 
                     # if header_count == 0:
                     #    lineOut = ['Vector ID', 'Range', 'Lifetime', 'x', 'y']
@@ -517,7 +517,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     new_vector = Vectors(
                         # uniqueID=uniqueID,
                         subregion=subregion,
-                        #range=range_,
+                        range=range_,
                         alive=alive,
                         birthday=birthday,
                         lifetime=lifetime,
@@ -1122,15 +1122,17 @@ def read_config_file():
     bite_limit = read_config_section("HOST POPULATION PARAMETERS", False)['bite_limit']
 
     # Vector population parameters
-    mosquito_susceptible_coef = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
-        'mosquito_susceptible_coef']
-    mosquito_init_infectd = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
-        'mosquito_init_infected']
-    biting_rate = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['biting_rate']
-    mosquito_exposed = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)[
-        'mosquito_exposed']
-    season_start = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['season_start']
-    season_end = mosquito_init_infectdread_config_section("VECTOR POPULATION PARAMETERS", False)['season_end']
+    mosquito_susceptible_coef = read_config_section("VECTOR POPULATION PARAMETERS", False)['mosquito_susceptible_coef']
+
+    mosquito_init_infectd = read_config_section("VECTOR POPULATION PARAMETERS", False)['mosquito_init_infected']
+
+    biting_rate = read_config_section("VECTOR POPULATION PARAMETERS", False)['biting_rate']
+
+    mosquito_exposed = read_config_section("VECTOR POPULATION PARAMETERS", False)['mosquito_exposed']
+
+    season_start = read_config_section("VECTOR POPULATION PARAMETERS", False)['season_start']
+
+    season_end = read_config_section("VECTOR POPULATION PARAMETERS", False)['season_end']
 
 
 def config_menu():
