@@ -21,10 +21,11 @@ import numpy as np
 from sqlalchemy import create_engine, MetaData, Table, and_
 from sqlalchemy.orm import sessionmaker
 
-from db import Humans, Vectors, Log
+from db import Humans, Vectors, Log, vectorHumanLinks
 from gis import point_creator
 
 global working_directory_set
+
 working_directory_set = False
 
 # Simulation parameters
@@ -55,6 +56,7 @@ number_of_importers = 25  # number of people to bring back disease from foreign 
 bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
+modified_mosquitos = False
 mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
@@ -131,7 +133,7 @@ def create_bboxes(list_coordinates):
 
 def random_points(subregion_dictionary):
     """
-    Random poitns within bounding box
+    Random points within bounding box
     """
 
     bbox = create_bboxes(subregion_dictionary['bbox'])
@@ -214,6 +216,7 @@ def build_vectors():
     Builds vector population
     :return: Dict of dicts N size, with parameters
     """
+
     subregions_list = []
     infected_vectors = 0
     # mosquito_season_start = int(input("Start day of mosquito season: "))
@@ -226,21 +229,23 @@ def build_vectors():
     clear_screen()
     print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
 
+    # Flag for adding modified mosquitos to population.
+    if modified_mosquitos:
+        modified = True
+    else:
+        modified = False
+
     for i in sub_regions_dict:
         subregion = i['id']  # subregion ID
         area = float(i['area'])  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
 
-        # Create random points
-        bbox = create_bboxes(i['bbox'])
-        poly = i['vertices']
-        x, y = random_points(bbox, poly)
-
         vector_population = dict(
             (x, {
                 'uuid': str(uuid()),
                 'subregion': subregion,
-                # 'range': random.uniform(0, 500),  # 500 meters or so
+                'modified': modified,
+                'range': random.uniform(0, 500),  # 500 meters or so
                 'alive': 'False',  # They come to life on their birthdays
                 'birthday': random.choice(mosquito_season),
                 'lifetime': random.normalvariate(15, 2),  # in days
@@ -263,37 +268,7 @@ def build_vectors():
 
         subregions_list.append(vector_population)
 
-
     return subregions_list
-
-
-def sub_regions(filename):
-    """
-    Read CSV
-    :param filename: CSV filename
-    :return: Dict of subregions
-    """
-
-    header = 0
-    subregion = {}
-
-    with open(filename, 'r') as csvfile:
-        # Skip header
-        has_header = csv.Sniffer().has_header(csvfile.read(1024))
-        csvfile.seek(0)
-
-        # Read the CSV
-        reader = csv.reader(csvfile, delimiter=',')
-        if has_header:
-            next(reader)
-        subregion = dict(
-            (row[0], {
-                'pop': int(row[1]),
-                'area': row[2]
-            }) for row in reader
-        )
-
-    return subregion
 
 
 def shape_subregions(wd):
@@ -303,7 +278,6 @@ def shape_subregions(wd):
     :return: Dict of subregions
     """
 
-    subregion = {}
     sub_list = subregion_list_of_lists_generators(wd)
 
     return sub_list
@@ -532,15 +506,71 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 session.commit()
             del vector[:]
             input("Vector population table successfully built. Press enter to return to main menu.")
+
+        elif tableToBuild == 'vectorHumanLinks':  # Build links between host/vectors in links table
+
+            session = read_db()
+
+            row = session.query(Humans).yield_per(1000)  # This might be way more efficient
+            population = dict(
+                (r.id, {
+                    'id': r.id,
+                    'x': r.x,
+                    'y': r.y
+                }) for r in row
+            )
+
+            vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
+            vectors = dict(
+                (v.id, {
+                    'id': v.id,
+                    'range': v.range,
+                    'x': v.x,
+                    'y': v.y
+                }) for v in vectors
+            )
+
+            for vector in vectors:
+                vector_id = vectors.get(vector)['id']
+                range = vectors.get(vector)['range']  # These may need some work
+                vector_x = vectors.get(vector)['x']
+                vector_y = vectors.get(vector)['y']
+
+                vector_coordinates = [vector_x, vector_y]
+
+                for human in population:
+                    human_id = population.get(human)['id']
+                    human_x = population.get(human)['x']
+                    human_y = population.get(human)['y']
+
+                    human_coordinates = [human_x, human_y]
+
+                    if euclidian(vector_coordinates,
+                                 human_coordinates) < range:  # Add the relationship to the link table
+                        new_link = vectorHumanLinks(
+                            human_id=human_id,
+                            vector_id=vector_id
+                        )
+
+                        session.add(new_link)
+            session.commit()
+
     except KeyboardInterrupt:
         input("You interrupted me! Press enter to return to main menu.")
         main_menu()
 
-def euclidian():
+
+def euclidian(a, b):
     """
     Calculate distance between points on 2d surface
-    :return:
+    :param a: a list of coordinates for point a
+    :param b: a list of coordinates for point b
+    :return: distance in whichever unit is provided to the function
     """
+
+    dist = numpy.linalg.norm(a - b)
+
+    return dist
 
 
 def simulation():  #TODO: This needs to be refactored.
@@ -552,7 +582,6 @@ def simulation():  #TODO: This needs to be refactored.
     # TODO: Create backup_table function and use here.
     # TODO: Auto end simulation if infections end
     # TODO: Fix total exposed counter
-    # TODO: Break down simulation by subregion, to allow for GIS analysis.
 
 
     rowNum = 1
@@ -884,6 +913,7 @@ def read_db():
         input("\n\nSuccessfully loaded database. Press enter to return to the main menu.")
 
         return session
+
     except:
         clear_screen()
         input("Could not load database. Make sure the database is called 'simulation.epi.' Unfortunately, you may need"
@@ -1157,7 +1187,8 @@ def config_menu():
                   "3. Load existing tables\n"
                   "4. Build host data\n"
                   "5. Build vector data\n"
-                  "6. Main menu\n")
+                  "6. Build vector-human range links\n"
+                  "7. Main menu\n")
 
             answer = input(">>> ")
 
@@ -1172,7 +1203,7 @@ def config_menu():
 
             if answer.startswith('4'):
                 if not working_directory_set:
-                    working_directory = input("Path to subregions.csv: ")
+                    working_directory = input("Path to shape data: ")
                     working_directory_set = True
                 setupDB()
 
@@ -1180,13 +1211,21 @@ def config_menu():
 
             if answer.startswith('5'):
                 if not working_directory_set:
-                    working_directory = input("Path to subregions.csv: ")
+                    working_directory = input("Path to shape data: ")
                     working_directory_set = True
                 setupDB()
 
                 build_population_files(working_directory, 'Vectors')
 
             if answer.startswith('6'):
+                if not working_directory_set:
+                    working_directory = input("Path to shape data: ")
+                    working_directory_set = True
+                setupDB()
+
+                build_population_files(working_directory, 'vectorHumanLinks')
+
+            if answer.startswith('7'):
                 main_menu()
 
         except KeyboardInterrupt:

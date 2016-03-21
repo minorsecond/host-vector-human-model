@@ -44,6 +44,7 @@ class Vectors(Base):
     id = Column(Integer, primary_key=True, index=True)
     # uniqueID = Column(String)
     subregion = Column(String)
+    modified = Column(Boolean)
     alive = Column(String)
     birthday = Column(Integer)
     lifetime = Column(Integer)
@@ -71,5 +72,16 @@ class Log(Base):
     nInfectedVectors = Column(Integer)
     nSuscVectors = Column(Integer)
     nRemovedVectors = Column(Integer)
+
+
+class vectorHumanLinks(Base):
+    """
+    Table to link vectors to humans within range
+    """
+
+    __tablename__ = 'vector_human_links'
+    id = Column(Integer, primary_key=True)
+    human_id = Column(Integer, index=True)
+    vector_id = Column(Integer, index=True)
 
 Base.metadata.create_all(engine)
