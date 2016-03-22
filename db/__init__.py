@@ -2,7 +2,8 @@
 SQLite database files
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Float, create_engine
+from geoalchemy import *
+from sqlalchemy import Integer, String, Boolean, Float, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('sqlite:///simulation.epi')
@@ -31,8 +32,7 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    x = Column(String)
-    y = Column(String)
+    geom = GeometryColumn(Point(2))
 
 
 class Vectors(Base):
@@ -52,8 +52,7 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    x = Column(String)
-    y = Column(String)
+    geom = GeometryColumn(Point(2))
 
 
 class Log(Base):
@@ -82,8 +81,8 @@ class vectorHumanLinks(Base):
 
     __tablename__ = 'vector_human_links'
     id = Column(Integer, primary_key=True)
-    human_id = Column(Integer, index=True)
-    vector_id = Column(Integer, index=True)
+    human_id = Column(Integer, index=True, ForeignKey=(Humans.id))
+    vector_id = Column(Integer, index=True, ForeignKey=(Vectors.id))
     distance = Column(Float)
 
 Base.metadata.create_all(engine)

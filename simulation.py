@@ -20,7 +20,8 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table, and_
+from geoalchemy import *
+from sqlalchemy import create_engine, MetaData, and_
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log, vectorHumanLinks
@@ -544,6 +545,8 @@ def build_range_links():
     Adds rows to links table based on host distance from vector
     """
 
+    i = 0
+
     clear_screen()
     print("\nLoading host database into RAM...")
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
@@ -566,7 +569,6 @@ def build_range_links():
         }) for v in vectors
     )
 
-    print("Creating links...")
     for vector in vectors:
         vector_id = vectors.get(vector)['id']
         vector_range = vectors.get(vector)['range']  # These may need some work
@@ -576,6 +578,7 @@ def build_range_links():
         vector_coordinates = [vector_x, vector_y]
 
         for human in population:
+            print("Analyzing link {0} of {1}".format(i, (len(population) * len(vectors))))
             human_id = population.get(human)['id']
             human_x = float(population.get(human)['x'])
             human_y = float(population.get(human)['y'])
@@ -583,7 +586,7 @@ def build_range_links():
             human_coordinates = [human_x, human_y]
 
             if euclidian(vector_coordinates,
-                         human_coordinates) < vector_range:  # Add the relationship to the link table
+                         human_coordinates) <= vector_range:  # Add the relationship to the link table
                 distance = euclidian(vector_coordinates, human_coordinates)
 
                 new_link = vectorHumanLinks(
@@ -591,8 +594,9 @@ def build_range_links():
                     vector_id=vector_id,
                     distance=distance
                 )
+            i += 1
 
-                session.add(new_link)
+            session.add(new_link)
     session.commit()
 
 
