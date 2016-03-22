@@ -85,4 +85,22 @@ class vectorHumanLinks(Base):
     vector_id = Column(Integer, index=True, ForeignKey=(Vectors.id))
     distance = Column(Float)
 
+
+class subRegion(Base):
+    """
+    Table containing subregion polys
+    """
+
+    __tablename__ = 'subregions'
+    id = Column(Integer, primary_key=True)
+    subregion_id = Column(String, index=True)
+    population = Column(Integer)
+    area = Column(Float)
+    geom = GeometryColumn(Polygon(2))
+
+
+GeometryDDL(Vectors.__table__)
+GeometryDDL(Humans.__table__)
+GeometryDDL(subRegion.__table__)
+
 Base.metadata.create_all(engine)
