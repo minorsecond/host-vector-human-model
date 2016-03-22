@@ -7,7 +7,6 @@ Please run this on a rotating hard drive - building large
 # TODO: Switch all random calls to use numpy
 # TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
 # TODO: Output to shapefile
-# TODO: Method to allow cross-subregion exposure (based off euclidian distance)
 # TODO: Read and write config file
 # TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins. Maybe use a sine.
 
@@ -22,6 +21,7 @@ from uuid import uuid4 as uuid
 import numpy as np
 from geoalchemy import *
 from sqlalchemy import create_engine, MetaData, and_
+from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log, vectorHumanLinks
@@ -60,7 +60,7 @@ bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
 modified_mosquitos = False
-mosquito_susceptible_coef = 1000  # mosquitos per square kilometer
+mosquito_susceptible_coef = 100  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 biting_rate = 3  # average bites per day
@@ -345,15 +345,13 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
         if tableToBuild == 'Humans':
 
-            population_structure_file = os.path.join(directory, 'human_population.csv')
-            check_if_file_exists(population_structure_file)
-
             # Print population structure info
             population = (build_population())
 
             pregnancy_eligible = 0
             pregnant_count = 0
 
+            print("Adding hosts to PostGIS database...")
             for dictionary in population:  # Human dictionary
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
@@ -393,7 +391,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        geom=WKTSpatialElement("POINT({0} {1}".format(x, y))  # TODO: test this
+                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
                     session.add(new_human)
@@ -455,6 +453,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
             vector = (build_vectors())
 
+            print("Adding vectors to PostGIS database...")
             for dictionary in vector:
                 for i in dictionary:
                     #uniqueID = dictionary[i].get('uuid')
@@ -479,8 +478,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         susceptible=susceptible,
                         infected=infected,
                         removed=removed,
-                        x=x,
-                        y=y
+                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
                     session.add(new_vector)
@@ -529,8 +527,7 @@ def build_vector_table():
                 susceptible=susceptible,
                 infected=infected,
                 removed=removed,
-                x=x,
-                y=y
+                geom='POINT{0} {1}'.format(x, y)
             )
 
             session.add(new_vector)
@@ -619,6 +616,19 @@ def euclidian(a, b):
     dist = np.linalg.norm(a - b)
 
     return dist
+
+
+def post_gis_distance_query(vector_point, range):
+    """
+    Queries the PostGIS database and returns list of objects within specified range
+    """
+
+    near = []
+
+    result = session.query(Humans).filter(func.ST_DFullyWithin(Humans.location, vector_point, range)).all()
+
+    for i in result:
+        input(i)
 
 
 def simulation():  #TODO: This needs to be refactored.
@@ -928,7 +938,7 @@ def setupDB():
     global working_directory_set
     global session
 
-    engine = create_engine('sqlite:///simulation.epi')
+    engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 

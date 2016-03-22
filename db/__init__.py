@@ -2,14 +2,14 @@
 SQLite database files
 """
 
-from geoalchemy import *
-from sqlalchemy import Integer, String, Boolean, Float, create_engine
+from geoalchemy2 import Geometry
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-engine = create_engine('sqlite:///simulation.epi')
+engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
 Base = declarative_base()
 
-__all__ = ['Humans', 'Vectors']
+__all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks', 'subRegion']
 
 
 class Humans(Base):
@@ -32,7 +32,7 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    geom = GeometryColumn(Point(2, srid=2845))
+    geom = Column(Geometry('POINT', srid=2845))
 
 
 class Vectors(Base):
@@ -52,7 +52,7 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    geom = GeometryColumn(Point(2, srid=2845), )
+    geom = Column(Geometry('POINT', srid=2845))
 
 
 class Log(Base):
@@ -81,8 +81,8 @@ class vectorHumanLinks(Base):
 
     __tablename__ = 'vector_human_links'
     id = Column(Integer, primary_key=True)
-    human_id = Column(Integer, index=True, ForeignKey=(Humans.id))
-    vector_id = Column(Integer, index=True, ForeignKey=(Vectors.id))
+    human_id = Column(Integer, ForeignKey(Humans.id), index=True)
+    vector_id = Column(Integer, ForeignKey(Vectors.id), index=True)
     distance = Column(Float)
 
 
@@ -96,11 +96,11 @@ class subRegion(Base):
     subregion_id = Column(String, index=True)
     population = Column(Integer)
     area = Column(Float)
-    geom = GeometryColumn(Polygon(2, srid=2845))
+    geom = geom = Column(Geometry('POLYGON', srid=2845))
 
 
-GeometryDDL(Vectors.__table__)
-GeometryDDL(Humans.__table__)
-GeometryDDL(subRegion.__table__)
+Humans.__table__.create(engine, checkfirst=True)
+Vectors.__table__.create(engine, checkfirst=True)
+subRegion.__table__.create(engine, checkfirst=True)
 
-Base.metadata.create_all(engine)
+Base.metadata.create_all(engine, checkfirst=True)
