@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, crea
 from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
+engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 Base = declarative_base()
 
 __all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks', 'subRegion']
@@ -20,7 +21,8 @@ class Humans(Base):
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True, index=True)
     uniqueID = Column(String)
-    linkedTo = Column(String)  # Link uniqueID to another uniqueID in table for relationships (sexual transmission)
+    linkedTo = Column(String, ForeignKey(
+        uniqueID))  # Link uniqueID to another uniqueID in table for relationships (sexual transmission)
     subregion = Column(String)
     importer = Column(Boolean)
     importDay = Column(Integer)

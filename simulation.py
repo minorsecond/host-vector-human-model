@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, MetaData, and_
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
-from db import Humans, Vectors, Log, vectorHumanLinks
+from db import Humans, Vectors, Log, vectorHumanLinks, subRegion
 from gis import point_creator
 
 global working_directory_set
@@ -60,7 +60,7 @@ bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
 modified_mosquitos = False
-mosquito_susceptible_coef = 100  # mosquitos per square kilometer
+mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
 biting_rate = 3  # average bites per day
@@ -175,15 +175,17 @@ def build_population():
     sub_regions_dict = shape_subregions(in_subregion_data)
 
     clear_screen()
-    print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict) - 1))
+    print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
 
     for i in sub_regions_dict:
         subregion = i['id']  # subregion ID
         pop = int(i['population'])  # grab population from subregion dict
+        ID_list = []
 
         population = dict(
             (x, {
                 'uuid': str(uuid()),
+                'linkedTo': None,
                 'subregion': subregion,
                 'importer': False,  # Brings disease in from another place
                 'importDay': None,
@@ -204,12 +206,24 @@ def build_population():
         )
 
         for x in population:  # assign pregnancy to some of population  This is duplicated.  TODO: figure out which one works
+            ID_list.append(population[x].get('uuid'))
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if random.randint(0, 100) < 4:
                         population[x]['pregnant'] = 'True'
 
+        for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
+            if population[y].get('age') >= 18:
+                link_id = random.choice(ID_list)
+                while link_id == population[y].get('uuid'):
+                    link_id = random.choice(ID_list)
+
+                population[y]['linkedTo'] = link_id
+                linked = population.get('uuid') == link_id
+                linked['linkedTo'] = population[y]['uuid']
+
         subregions_list.append(population)
+
 
     return subregions_list
 
@@ -334,6 +348,43 @@ def output_status(n, total):
     return (n / total) * 100
 
 
+def build_subregion_table():
+    """
+    Builts subregion table for PostGIS
+    """
+    in_subregion_data = os.path.join(working_directory)
+    subregions = point_creator.grab_vertices(in_subregion_data + "/subregions")
+
+    for i in subregions:
+        subregion = i['id']
+        area = float(i['area'])
+        population = i['population']
+        vertices = i['vertices']
+        vertex_list = []
+
+        test = '((1 0,3 0,3 2,1 2,1 0))'
+
+        for point in vertices:
+            x = float(point[0])
+            y = float(point[1])
+            formatted_point = "{0} {1}".format(x, y)
+            vertex_list.append(formatted_point)
+        vertex_list = tuple(vertex_list)
+
+        vertices = tuple(tuple(a.strip("\'") for a in vertex_list))
+        input(vertices)
+
+        new_subregion = subRegion(
+            subregion_id=subregion,
+            area=area,
+            population=population,
+            geom='SRID=2845;POLYGON({})'.format((vertex_list))
+        )
+        session.add(new_subregion)
+
+    session.commit()
+
+
 def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
@@ -351,7 +402,8 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
             pregnancy_eligible = 0
             pregnant_count = 0
 
-            print("Adding hosts to PostGIS database...")
+            print("Creating population tables for database...")
+
             for dictionary in population:  # Human dictionary
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
@@ -394,7 +446,10 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
+                    del i
                     session.add(new_human)
+                    del new_human
+
                 session.commit()
 
             # Create initial human infections
@@ -502,6 +557,8 @@ def build_vector_table():
 
     vector = (build_vectors())
 
+    print("Creating vector tables for database...")
+
     for dictionary in vector:
         for i in dictionary:
             # uniqueID = dictionary[i].get('uuid')
@@ -581,18 +638,20 @@ def build_range_links():
 
             human_coordinates = [human_x, human_y]
 
-            if euclidian(vector_coordinates,
-                         human_coordinates) <= vector_range:  # Add the relationship to the link table
-                distance = euclidian(vector_coordinates, human_coordinates)
+        if session.query(Humans).filter(func.ST_DFullyWithin(Humans.location,
+                                                             Vectors.location,
+                                                             vector_range)).all():  # Should return True if within range
+            distance = euclidian(vector_coordinates, human_coordinates)
+            distance = session.query(func.ST.Distance(Humans.geom, Vectors.geom))
 
-                new_link = vectorHumanLinks(
-                    human_id=human_id,
-                    vector_id=vector_id,
-                    distance=distance
-                )
-            i += 1
+            new_link = vectorHumanLinks(
+                human_id=human_id,
+                vector_id=vector_id,
+                distance=distance
+            )
+        i += 1
 
-            session.add(new_link)
+        session.add(new_link)
     session.commit()
 
 
@@ -938,7 +997,8 @@ def setupDB():
     global working_directory_set
     global session
 
-    engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
+    # engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
+    engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
@@ -1243,10 +1303,11 @@ def config_menu():
                   "1. Create configuration\n"
                   "2. Load configuration\n"
                   "3. Load existing tables\n"
-                  "4. Build host data\n"
-                  "5. Build vector data\n"
-                  "6. Build vector-human range links\n"
-                  "7. Main menu\n")
+                  "4. Build subregion table\n"
+                  "5. Build host table\n"
+                  "6. Build vector table\n"
+                  "7. Build vector-human range links\n"
+                  "8. Main menu\n")
 
             answer = input(">>> ")
 
@@ -1265,7 +1326,7 @@ def config_menu():
                     working_directory_set = True
                 setupDB()
 
-                build_population_files(working_directory, 'Humans')
+                build_subregion_table()
 
             if answer.startswith('5'):
                 if not working_directory_set:
@@ -1273,13 +1334,21 @@ def config_menu():
                     working_directory_set = True
                 setupDB()
 
-                build_population_files(working_directory, 'Vectors')
+                build_population_files(working_directory, 'Humans')
 
             if answer.startswith('6'):
+                if not working_directory_set:
+                    working_directory = input("Path to shape data: ")
+                    working_directory_set = True
+                setupDB()
+
+                build_population_files(working_directory, 'Vectors')
+
+            if answer.startswith('7'):
                 setupDB()
                 build_range_links()
 
-            if answer.startswith('7'):
+            if answer.startswith('8'):
                 main_menu()
 
         except KeyboardInterrupt:
