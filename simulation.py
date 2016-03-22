@@ -173,14 +173,16 @@ def build_population():
     #in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     in_subregion_data = os.path.join(working_directory)
     sub_regions_dict = shape_subregions(in_subregion_data)
-
-    clear_screen()
-    print('- Building population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
+    count = 1
 
     for i in sub_regions_dict:
+
         subregion = i['id']  # subregion ID
         pop = int(i['population'])  # grab population from subregion dict
         ID_list = []
+
+        clear_screen()
+        print("Building {0} hosts for subregion {1} of {2}".format(pop, count, len(sub_regions_dict)))
 
         population = dict(
             (x, {
@@ -227,6 +229,7 @@ def build_population():
 
 
         subregions_list.append(population)
+        count += 1
 
 
     return subregions_list
