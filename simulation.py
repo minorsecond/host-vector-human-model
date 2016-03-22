@@ -242,6 +242,7 @@ def build_vectors():
     """
 
     subregions_list = []
+    count = 0
     infected_vectors = 0
     # mosquito_season_start = int(input("Start day of mosquito season: "))
     # mosquito_season_end = int(input("End day of mosquito season: "))
@@ -249,9 +250,6 @@ def build_vectors():
 
     in_subregion_data = os.path.join(working_directory)
     sub_regions_dict = sub_regions_dict = shape_subregions(in_subregion_data)
-
-    clear_screen()
-    print('Building vector population for {0} sub-regions. This will take a second..'.format(len(sub_regions_dict)))
 
     # Flag for adding modified mosquitos to population.
     if modified_mosquitos:
@@ -263,6 +261,9 @@ def build_vectors():
         subregion = i['id']  # subregion ID
         area = float(i['area'])  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
+
+        clear_screen()
+        print("Building {0} vectors for subregion {1} of {2}".format(vector_pop, count, len(sub_regions_dict)))
 
         vector_population = dict(
             (x, {
@@ -291,6 +292,7 @@ def build_vectors():
                     vector_population[x]['exposed'] = 'False'
 
         subregions_list.append(vector_population)
+        count += 1
 
     return subregions_list
 
@@ -638,6 +640,7 @@ def build_range_links():
         vector_coordinates = [vector_x, vector_y]
 
         for human in population:
+            clear_screen()
             print("Analyzing link {0} of {1}".format(i, (len(population) * len(vectors))))
             human_id = population.get(human)['id']
             human_x = float(population.get(human)['x'])
