@@ -209,18 +209,22 @@ def build_population():
             ID_list.append(population[x].get('uuid'))
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
-                    if random.randint(0, 100) < 4:
+                    if random.uniform(0, 1) < .4:
                         population[x]['pregnant'] = 'True'
 
         for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
             if population[y].get('age') >= 18:
-                link_id = random.choice(ID_list)
-                while link_id == population[y].get('uuid'):
+                link_id = None
+                if random.uniform(0, 1) > .52:
                     link_id = random.choice(ID_list)
+                    while link_id == population[y].get('uuid'):
+                        link_id = random.choice(ID_list)
 
                 population[y]['linkedTo'] = link_id
-                linked = population.get('uuid') == link_id
-                linked['linkedTo'] = population[y]['uuid']
+                for z in population:
+                    if population.get('uuid') == population[y].get('linkedTo'):
+                        population[z]['linkedTo'] = population[y]['uuid']
+
 
         subregions_list.append(population)
 
