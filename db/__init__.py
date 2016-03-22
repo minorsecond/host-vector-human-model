@@ -6,7 +6,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
+# engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
 engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 Base = declarative_base()
 
@@ -98,7 +98,7 @@ class subRegion(Base):
     subregion_id = Column(String, index=True)
     population = Column(Integer)
     area = Column(Float)
-    geom = geom = Column(Geometry('POLYGON', srid=2845))
+    geom = Column(Geometry('POLYGON', srid=2845))
 
 
 Humans.__table__.create(engine, checkfirst=True)
