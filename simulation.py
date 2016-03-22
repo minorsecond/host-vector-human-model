@@ -208,7 +208,8 @@ def build_population():
         )
 
         for x in population:  # assign pregnancy to some of population  This is duplicated.  TODO: figure out which one works
-            ID_list.append(population[x].get('uuid'))
+            if population[x].get('age') >= 18:
+                ID_list.append(population[x].get('uuid'))
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if random.uniform(0, 1) < .4:
@@ -217,15 +218,16 @@ def build_population():
         for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
             if population[y].get('age') >= 18:
                 link_id = None
-                if random.uniform(0, 1) > .52:
+                if random.uniform(0, 1) < .52:
                     link_id = random.choice(ID_list)
                     while link_id == population[y].get('uuid'):
                         link_id = random.choice(ID_list)
+                    ID_list.remove(link_id)
 
-                population[y]['linkedTo'] = link_id
-                for z in population:
-                    if population.get('uuid') == population[y].get('linkedTo'):
-                        population[z]['linkedTo'] = population[y]['uuid']
+                    population[y]['linkedTo'] = link_id
+                    for z in population:
+                        if population.get('uuid') == population[y].get('linkedTo'):
+                            population[z]['linkedTo'] = population[y]['uuid']
 
 
         subregions_list.append(population)
@@ -397,7 +399,7 @@ def build_subregion_table():
 def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
-    idList = []
+    uuidList = []
     infectList = []
     importer_list = []
 
@@ -417,6 +419,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
+                    linkedTo = dictionary[i].get('linkedTo')
                     importer = dictionary[i].get('importer')
                     importDay = dictionary[i].get('importDay')
                     age = dictionary[i].get('age')
@@ -442,6 +445,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
                     new_human = Humans(
                         uniqueID=uniqueID,
+                        linkedTo=linkedTo,
                         subregion=subregion,
                         importer=importer,
                         importDay=importDay,
@@ -455,6 +459,8 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
+                    uuidList.append(uniqueID)
+
                     del i
                     session.add(new_human)
                     del new_human
@@ -466,25 +472,27 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(initial_infected):
-                    infectList.append(random.randint(1, len(population)))  # Select random person, by id, to infect
+                    infectList.append(random.choice(uuidList))  # Select random person, by id, to infect
+
                 clear_screen()  # it's prettier
-                for i in infectList:
-                    while initial_infection_counter < initial_infected:
-                        for h in infectList:  # For each ID in the infected list,
-                            row = session.query(Humans).filter_by(
-                                id=h)  # select a human from the table whose ID matches
-                            for r in row:
-                                print("Infected {0} of {1}".format(row_count, initial_infected))
-                                if r.id in infectList:  # This might be redundant. I think ' if r.id == h'
-                                    row.update({"susceptible": 'False'}, synchronize_session='fetch')
-                                    row.update({"exposed": 'False'}, synchronize_session='fetch')
-                                    row.update({"infected": 'True'}, synchronize_session='fetch')
-                                    row.update({"recovered": 'False'}, synchronize_session='fetch')
-                                    initial_infection_counter += 1
-                                row_count += 1
+                # for i in infectList:
+                while initial_infection_counter < initial_infected:
+                    for h in infectList:  # For each ID in the infected list,
+                        row = session.query(Humans).filter_by(
+                            uniqueID=h)  # select a human from the table whose ID matches
+                        for r in row:
+                            print("Infected {0} of {1}".format(row_count, initial_infected))
+                            if r.uniqueID in infectList:  # This might be redundant. I think ' if r.id == h'
+                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                row.update({"exposed": 'False'}, synchronize_session='fetch')
+                                row.update({"infected": 'True'}, synchronize_session='fetch')
+                                row.update({"recovered": 'False'}, synchronize_session='fetch')
+                                initial_infection_counter += 1
+                            row_count += 1
 
                             session.commit()
 
+            print("got past initial infections")
             if number_of_importers > 0:
                 print("Setting up disease importers...")
                 importer_counter = 0  # If we're allowing random people to bring in disease from elsewhere
@@ -517,10 +525,11 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
             vector = (build_vectors())
 
+            clear_screen()
             print("Adding vectors to PostGIS database...")
             for dictionary in vector:
                 for i in dictionary:
-                    #uniqueID = dictionary[i].get('uuid')
+                    uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
                     vector_range = dictionary[i].get('range')
                     alive = dictionary[i].get('alive')
@@ -533,7 +542,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     y = dictionary[i].get('y')
 
                     new_vector = Vectors(
-                        # uniqueID=uniqueID,
+                        uniqueID=uniqueID,
                         subregion=subregion,
                         vector_range=vector_range,
                         alive=alive,
@@ -651,7 +660,8 @@ def build_range_links():
         if session.query(Humans).filter(func.ST_DFullyWithin(Humans.location,
                                                              Vectors.location,
                                                              vector_range)).all():  # Should return True if within range
-            distance = euclidian(vector_coordinates, human_coordinates)
+
+            #distance = euclidian(vector_coordinates, human_coordinates)
             distance = session.query(func.ST.Distance(Humans.geom, Vectors.geom))
 
             new_link = vectorHumanLinks(
@@ -1021,11 +1031,9 @@ def read_db():
     :return: A sqlalchemy session
     """
 
-    global session
+    global session, engine
 
     try:
-        dbPath = 'simulation.epi'
-        engine = create_engine('sqlite:///%s' % dbPath, echo=False)
 
         metadata = MetaData(engine)
         population = Table('Humans', metadata, autoload=True)
