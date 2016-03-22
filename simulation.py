@@ -393,8 +393,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        x=x,
-                        y=y
+                        geom=WKTSpatialElement("POINT({0} {1}".format(x, y))  # TODO: test this
                     )
 
                     session.add(new_human)

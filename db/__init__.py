@@ -32,7 +32,7 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    geom = GeometryColumn(Point(2))
+    geom = GeometryColumn(Point(2, srid=2845))
 
 
 class Vectors(Base):
@@ -52,7 +52,7 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    geom = GeometryColumn(Point(2))
+    geom = GeometryColumn(Point(2, srid=2845), )
 
 
 class Log(Base):
@@ -96,7 +96,7 @@ class subRegion(Base):
     subregion_id = Column(String, index=True)
     population = Column(Integer)
     area = Column(Float)
-    geom = GeometryColumn(Polygon(2))
+    geom = GeometryColumn(Polygon(2, srid=2845))
 
 
 GeometryDDL(Vectors.__table__)
