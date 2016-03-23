@@ -5,10 +5,8 @@ Please run this on a rotating hard drive - building large
 """
 
 # TODO: Switch all random calls to use numpy
-# TODO: Use spatialite db to allow spatial analyses of results and perhaps random walk simulations for vectors
 # TODO: Output to shapefile
 # TODO: Read and write config file
-# TODO: Seasonal variations in mosquito population. Allow entry of day # where each season begins. Maybe use a sine.
 
 import configparser
 import csv
@@ -148,12 +146,12 @@ def random_points(subregion_dictionary):
     y_min = min(y_values)
     y_max = max(y_values)
 
-    x = np.random.uniform(x_min, x_max)
-    y = np.random.uniform(y_min, y_max)
+    x = random.uniform(x_min, x_max)
+    y = random.uniform(y_min, y_max)
 
     while not point_in_poly(x, y, poly):  # Make sure point does not fall outside subregion
-        x = np.random.uniform(x_min, x_max)
-        y = np.random.uniform(y_min, y_max)
+        x = random.uniform(x_min, x_max)
+        y = random.uniform(y_min, y_max)
 
     coordinates = [x, y]
 
@@ -270,7 +268,7 @@ def build_vectors():
                 # 'uuid': str(uuid()),
                 'subregion': subregion,
                 'modified': modified,
-                'range': np.random.normal(90, 2),  # 90 meters or so
+                'range': random.gauss(90, 2),  # 90 meters or so
                 'alive': 'False',  # They come to life on their birthdays
                 'birthday': random.choice(mosquito_season),
                 'lifetime': random.normalvariate(15, 2),  # in days
@@ -286,7 +284,7 @@ def build_vectors():
         # Infect the number of mosquitos set at beginning of script TODO: fix this.
         for vector in range(mosquito_init_infectd):
             for x in vector_population:
-                if np.random.uniform(0, 1) < .01:
+                if random.uniform(0, 1) < .01:
                     vector_population[x]['infected'] = 'False'
                     vector_population[x]['susceptible'] = 'False'
                     vector_population[x]['exposed'] = 'False'
