@@ -813,15 +813,19 @@ def simulation():  #TODO: This needs to be refactored.
 
                     while contact_counter < contact_rate:  # Infect by contact rate per day
                         # Choose any random number except the one that identifies the person selected, 'h'
-                        # pid = random.choice(id_list)
 
-                        # while pid == r:
-                        #    pid = random.choice(id_list)
+                        if not population.get(r)['linkedTo']:  # Check if a value is set in the "linkedTo" field
+                            pid = random.choice(id_list)
 
-                        pid = population.get(r)['linkedTo']  # Contact spouse
-                        person_b = population.get(pid)
+                            while pid == r or population.get(pid)[
+                                'linkedTo']:  # Can't infect theirself or linked spouse
+                                pid = random.choice(id_list)
 
-                        if person_b['contacts'] == 0:
+                        else:
+                            pid = population.get(r)['linkedTo']  # Contact spouse
+                            person_b = population.get(pid)
+
+                        if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
 
                             if person_a['infected'] == 'True':
                                 if random.uniform(0, 1) < kappa:  # chance of infection
