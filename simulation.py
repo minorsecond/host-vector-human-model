@@ -19,9 +19,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from geoalchemy import *
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy import func
+from sqlalchemy import create_engine, MetaData, Table, and_
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log, vectorHumanLinks
@@ -269,7 +267,7 @@ def build_vectors():
 
         vector_population = dict(
             (x, {
-                'uuid': str(uuid()),
+                # 'uuid': str(uuid()),
                 'subregion': subregion,
                 'modified': modified,
                 'range': np.random.normal(90, 2),  # 90 meters or so
@@ -452,7 +450,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                                     initial_infection_counter += 1
                                 row_count += 1
 
-                                session.commit()
+                            session.commit()
 
             if number_of_importers > 0:
                 print("Setting up disease importers...")
@@ -490,7 +488,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
             print("Adding vectors to PostGIS database...")
             for dictionary in vector:
                 for i in dictionary:
-                    uniqueID = dictionary[i].get('uuid')
+                    #uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
                     vector_range = dictionary[i].get('range')
                     alive = dictionary[i].get('alive')
@@ -503,7 +501,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     y = dictionary[i].get('y')
 
                     new_vector = Vectors(
-                        uniqueID=uniqueID,
+                        #uniqueID=uniqueID,
                         subregion=subregion,
                         vector_range=vector_range,
                         alive=alive,
@@ -564,7 +562,8 @@ def build_vector_table():
                 susceptible=susceptible,
                 infected=infected,
                 removed=removed,
-                geom='POINT{0} {1}'.format(x, y)
+                x=x,
+                y=y
             )
 
             session.add(new_vector)
@@ -651,19 +650,6 @@ def euclidian(a, b):
     return dist
 
 
-def post_gis_distance_query(vector_point, range):
-    """
-    Queries the PostGIS database and returns list of objects within specified range
-    """
-
-    near = []
-
-    result = session.query(Humans).filter(func.ST_DFullyWithin(Humans.location, vector_point, range)).all()
-
-    for i in result:
-        input(i)
-
-
 def simulation():  #TODO: This needs to be refactored.
     """
     Simulation class
@@ -685,7 +671,6 @@ def simulation():  #TODO: This needs to be refactored.
     initial_susceptible_vectors = session.query(Vectors).filter_by(susceptible='True').count()
     nInfectedVectors = 1
     nSuscVectors = 1
-    # infected_count = session.query(Humans).filter_by(infected='True').count()
     number_vectors = session.query(Vectors).count()
     total_exposed = 0
 
@@ -719,8 +704,7 @@ def simulation():  #TODO: This needs to be refactored.
         if subregion not in subregion_list:
             subregion_list.append(subregion)
 
-
-    vectors = session.query(Vectors).yield_per(1000)  # TODO: Optimize this. Currently VERY slow queries.
+    vectors = session.query(Vectors).yield_per(1000)
     vectors = dict(
         (v.id, {
             'id': v.id,
@@ -747,7 +731,6 @@ def simulation():  #TODO: This needs to be refactored.
                 vector_susceptible_count = 0
                 vector_infected_count = 0
                 vector_removed_count = 0
-                i = 0
 
                 for p in population:
                     if population.get(p)['subregion'] == subregion:
@@ -761,21 +744,21 @@ def simulation():  #TODO: This needs to be refactored.
                         vectors.get(v)['susceptible'] = 'True'
                     vector_list.append(v)  # TODO: Find a way to deal with this as it makes the sim slow.
 
-                # if day == 0:  # Start log at day 0
-                #    susceptible_count = session.query(Humans).filter_by(and_(Humans.susceptible=='True',
-                #                                                             Humans.subregion==subregion)).count()
-                #    log_entry = Log(Day=day,
-                #                    nSusceptible=initial_susceptible_humans,
-                #                    nExposed=exposed_count,
-                #                    nInfected=infected_count,
-                #                    nRecovered=recovered_count,
-                #                    nDeaths='NULL',
-                #                    nBirthInfections='NULL',
-                #                    nInfectedVectors=vector_infected_count,
-                #                    nSuscVectors=initial_susceptible_vectors,
-                #                    nRemovedVectors=vector_removed_count)
-                #    session.add(log_entry)
-                #    session.commit()
+                if day == 0:  # Start log at day 0
+                    susceptible_count = session.query(Humans).filter_by(and_(Humans.susceptible == 'True',
+                                                                             Humans.subregion == subregion)).count()
+                    log_entry = Log(Day=day,
+                                    nSusceptible=initial_susceptible_humans,
+                                    nExposed=exposed_count,
+                                    nInfected=infected_count,
+                                    nRecovered=recovered_count,
+                                    nDeaths='NULL',
+                                    nBirthInfections='NULL',
+                                    nInfectedVectors=vector_infected_count,
+                                    nSuscVectors=initial_susceptible_vectors,
+                                    nRemovedVectors=vector_removed_count)
+                    session.add(log_entry)
+                    session.commit()
 
                 # Run human-human interactions
                 for r in id_list:
@@ -829,6 +812,7 @@ def simulation():  #TODO: This needs to be refactored.
                             if random.uniform(0, 1) < kappa:  # chance of infection
                                 person_a['exposed'] = 'True'
                                 person_a['susceptible'] = 'False'
+                                total_exposed += 1
 
                         contact_counter += 1
 
@@ -850,7 +834,8 @@ def simulation():  #TODO: This needs to be refactored.
                                     person['susceptible'] = 'False'
                                     person['exposed'] = 'True'
 
-                                elif person['infected'] == 'True' and vector['susceptible'] == 'True':
+                                elif person['infected'] == 'True' and vector[
+                                    'susceptible'] == 'True':  #TODO: chance of vector infection
                                     vector['susceptible'] = 'False'
                                     vector['infected'] = 'True'
                                 person['biteCount'] += 1
@@ -910,7 +895,7 @@ def simulation():  #TODO: This needs to be refactored.
                               vector_susceptible_count, vector_infected_count, vector_removed_count))
 
                 log_entry = Log(Day=day + 1,
-                                Subregion=subregion,
+                                subregion=subregion,
                                 nSusceptible=susceptible_count,
                                 nExposed=exposed_count,
                                 nInfected=infected_count,
@@ -943,7 +928,6 @@ def simulation():  #TODO: This needs to be refactored.
 
         input("\nPress enter to return to main menu.")
 
-        # TODO: human within 'range' of mosquito - chance of infection
     except KeyboardInterrupt:
         session.commit()
         clear_screen()

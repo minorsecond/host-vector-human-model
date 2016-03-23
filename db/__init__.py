@@ -5,12 +5,10 @@ SQLite database files
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-from db.sqa_uuid import id_column
-
 engine = create_engine('sqlite:///simulation.epi')
 Base = declarative_base()
 
-__all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks', 'subRegion']
+__all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks']
 
 
 class Humans(Base):
@@ -44,7 +42,7 @@ class Vectors(Base):
 
     __tablename__ = "vectors"
     id = Column(Integer, primary_key=True, index=True)
-    uniqueID = Column(String, index=True)
+    # uniqueID = Column(String, index=True)
     subregion = Column(String)
     modified = Column(Boolean)
     alive = Column(String)
@@ -64,7 +62,7 @@ class Log(Base):
     """
     __tablename__ = "Log"
     id = Column(Integer, primary_key=True)
-    Subregion = Column(String)
+    subregion = Column(String)
     Day = Column(Integer)
     nSusceptible = Column(Integer)
     nExposed = Column(Integer)
