@@ -55,7 +55,7 @@ number_of_importers = 25  # number of people to bring back disease from foreign 
 bite_limit = 3  # Number of bites per human, per day.
 
 # Vector population parameters
-modified_mosquitos = False
+gm_flag = False
 mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
 mosquito_init_infectd = 0
@@ -82,7 +82,7 @@ def prompt(question):
 
 def point_in_poly(x, y, poly):
     """
-    Ray casting method of determining if point lies within a polygon. To be used for
+    Ray casting method of determining if point lies within a polygon.
     """
 
     n = len(poly)
@@ -197,7 +197,6 @@ def build_population():
                 'dayOfInf': 0,
                 'dayOfExp': 0,
                 'recState': 0,
-                'resistant': 'False',
                 'x': random_points(i)[0],
                 'y': random_points(i)[1]
             }) for x in range(pop)
@@ -233,11 +232,26 @@ def build_population():
     return subregions_list
 
 
+def vector_lifetime(gm):
+    """
+    Calculates vector lifetime based on if vector is genetically modified or not
+    """
+
+    if gm:
+        lifetime = random.gauss(3, .5)
+    else:
+        lifetime = random.gauss(15, 2)
+
+    return lifetime
+
+
 def build_vectors():
     """
     Builds vector population
     :return: Dict of dicts N size, with parameters
     """
+
+    global gm_flag
 
     subregions_list = []
     count = 0
@@ -250,7 +264,7 @@ def build_vectors():
     sub_regions_dict = sub_regions_dict = shape_subregions(in_subregion_data)
 
     # Flag for adding modified mosquitos to population.
-    if modified_mosquitos:
+    if gm_flag:
         modified = True
     else:
         modified = False
@@ -271,7 +285,7 @@ def build_vectors():
                 'range': random.gauss(90, 2),  # 90 meters or so
                 'alive': 'False',  # They come to life on their birthdays
                 'birthday': random.choice(mosquito_season),
-                'lifetime': random.normalvariate(15, 2),  # in days
+                'lifetime': vector_lifetime(gm_flag),  # in days
                 'susceptible': 'False',
                 'exposed': 'False',
                 'infected': 'False',
@@ -597,6 +611,7 @@ def build_range_links():
         }) for v in vectors
     )
 
+    print("Linking...")
     for vector in vectors:
         vector_id = vectors.get(vector)['id']
         vector_range = vectors.get(vector)['range']  # These may need some work
@@ -692,7 +707,8 @@ def simulation():  #TODO: This needs to be refactored.
             'recovered': r.recovered,
             'dayOfInf': r.dayOfInf,
             'dayOfExp': r.dayOfExp,
-            'biteCount': 0
+            'biteCount': 0,
+            'contacts': 0
         }) for r in row
     )
 
@@ -760,6 +776,9 @@ def simulation():  #TODO: This needs to be refactored.
 
                 # Run human-human interactions
                 for r in id_list:
+
+                    population.get(r)['contacts'] = 0  # Reset contact counter each day
+
                     if population.get(r)['subregion'] == subregion:
                         person_a = population.get(r)
                         contact_counter = 0
@@ -794,25 +813,31 @@ def simulation():  #TODO: This needs to be refactored.
 
                     while contact_counter < contact_rate:  # Infect by contact rate per day
                         # Choose any random number except the one that identifies the person selected, 'h'
-                        pid = random.choice(id_list)
-                        while pid == r:
-                            pid = random.choice(id_list)
+                        # pid = random.choice(id_list)
+
+                        # while pid == r:
+                        #    pid = random.choice(id_list)
+
+                        pid = population.get(r)['linkedTo']  # Contact spouse
                         person_b = population.get(pid)
 
-                        if person_a['infected'] == 'True':
-                            if random.uniform(0, 1) < kappa:  # chance of infection
-                                person_b['exposed'] = 'True'
-                                person_b['susceptible'] = 'False'
-                                total_exposed += 1
+                        if person_b['contacts'] == 0:
 
-                        # the infection can go either way
-                        elif person_b['infected'] == 'True':
-                            if random.uniform(0, 1) < kappa:  # chance of infection
-                                person_a['exposed'] = 'True'
-                                person_a['susceptible'] = 'False'
-                                total_exposed += 1
+                            if person_a['infected'] == 'True':
+                                if random.uniform(0, 1) < kappa:  # chance of infection
+                                    person_b['exposed'] = 'True'
+                                    person_b['susceptible'] = 'False'
+                                    total_exposed += 1
+
+                            # the infection can go either way
+                            elif person_b['infected'] == 'True':
+                                if random.uniform(0, 1) < kappa:  # chance of infection
+                                    person_a['exposed'] = 'True'
+                                    person_a['susceptible'] = 'False'
+                                    total_exposed += 1
 
                         contact_counter += 1
+                        person_b['contacts'] += 1
 
                 # Run mosquito-human interactions
                 for v in vector_list:
