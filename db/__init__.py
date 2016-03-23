@@ -2,14 +2,12 @@
 SQLite database files
 """
 
-from geoalchemy2 import Geometry
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 from db.sqa_uuid import id_column
 
-# engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
-engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
+engine = create_engine('sqlite:///simulation.epi')
 Base = declarative_base()
 
 __all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks', 'subRegion']
@@ -35,7 +33,8 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    geom = Column(Geometry('POINT', srid=2845))
+    x = Column(String)
+    y = Column(String)
 
 
 class Vectors(Base):
@@ -55,7 +54,8 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    geom = Column(Geometry('POINT', srid=2845))
+    x = Column(String)
+    y = Column(String)
 
 
 class Log(Base):
@@ -89,21 +89,4 @@ class vectorHumanLinks(Base):
     distance = Column(Float)
 
 
-class subRegion(Base):
-    """
-    Table containing subregion polys
-    """
-
-    __tablename__ = 'subregions'
-    id = Column(Integer, primary_key=True)
-    subregion_id = Column(String, index=True)
-    population = Column(Integer)
-    area = Column(Float)
-    geom = Column(Geometry('POLYGON', srid=2845))
-
-
-Humans.__table__.create(engine, checkfirst=True)
-Vectors.__table__.create(engine, checkfirst=True)
-subRegion.__table__.create(engine, checkfirst=True)
-
-Base.metadata.create_all(engine, checkfirst=True)
+Base.metadata.create_all(engine)

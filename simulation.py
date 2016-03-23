@@ -20,11 +20,11 @@ from uuid import uuid4 as uuid
 
 import numpy as np
 from geoalchemy import *
-from sqlalchemy import create_engine, MetaData, and_
+from sqlalchemy import create_engine, MetaData
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
-from db import Humans, Vectors, Log, vectorHumanLinks, subRegion
+from db import Humans, Vectors, Log, vectorHumanLinks
 from gis import point_creator
 
 global working_directory_set
@@ -359,47 +359,10 @@ def output_status(n, total):
     return (n / total) * 100
 
 
-def build_subregion_table():
-    """
-    Builts subregion table for PostGIS
-    """
-    in_subregion_data = os.path.join(working_directory)
-    subregions = point_creator.grab_vertices(in_subregion_data + "/subregions")
-
-    for i in subregions:
-        subregion = i['id']
-        area = float(i['area'])
-        population = i['population']
-        vertices = i['vertices']
-        vertex_list = []
-
-        test = '((1 0,3 0,3 2,1 2,1 0))'
-
-        for point in vertices:
-            x = float(point[0])
-            y = float(point[1])
-            formatted_point = "{0} {1}".format(x, y)
-            vertex_list.append(formatted_point)
-        vertex_list = tuple(vertex_list)
-
-        vertices = tuple(tuple(a.strip("\'") for a in vertex_list))
-        input(vertices)
-
-        new_subregion = subRegion(
-            subregion_id=subregion,
-            area=area,
-            population=population,
-            geom='SRID=2845;POLYGON({})'.format((vertex_list))
-        )
-        session.add(new_subregion)
-
-    session.commit()
-
-
 def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
-    uuidList = []
+    idList = []
     infectList = []
     importer_list = []
 
@@ -456,10 +419,9 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
+                        x=x,
+                        y=y
                     )
-
-                    uuidList.append(uniqueID)
 
                     del i
                     session.add(new_human)
@@ -472,27 +434,26 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(initial_infected):
-                    infectList.append(random.choice(uuidList))  # Select random person, by id, to infect
+                    infectList.append(random.randint(1, len(population)))  # Select random person, by id, to infect
 
                 clear_screen()  # it's prettier
-                # for i in infectList:
-                while initial_infection_counter < initial_infected:
-                    for h in infectList:  # For each ID in the infected list,
-                        row = session.query(Humans).filter_by(
-                            uniqueID=h)  # select a human from the table whose ID matches
-                        for r in row:
-                            print("Infected {0} of {1}".format(row_count, initial_infected))
-                            if r.uniqueID in infectList:  # This might be redundant. I think ' if r.id == h'
-                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
-                                row.update({"exposed": 'False'}, synchronize_session='fetch')
-                                row.update({"infected": 'True'}, synchronize_session='fetch')
-                                row.update({"recovered": 'False'}, synchronize_session='fetch')
-                                initial_infection_counter += 1
-                            row_count += 1
+                for i in infectList:
+                    while initial_infection_counter < initial_infected:
+                        for h in infectList:  # For each ID in the infected list,
+                            row = session.query(Humans).filter_by(
+                                id=h)  # select a human from the table whose ID matches
+                            for r in row:
+                                print("Infected {0} of {1}".format(row_count, initial_infected))
+                                if r.id in infectList:  # This might be redundant. I think ' if r.id == h'
+                                    row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                    row.update({"exposed": 'False'}, synchronize_session='fetch')
+                                    row.update({"infected": 'True'}, synchronize_session='fetch')
+                                    row.update({"recovered": 'False'}, synchronize_session='fetch')
+                                    initial_infection_counter += 1
+                                row_count += 1
 
-                            session.commit()
+                                session.commit()
 
-            print("got past initial infections")
             if number_of_importers > 0:
                 print("Setting up disease importers...")
                 importer_counter = 0  # If we're allowing random people to bring in disease from elsewhere
@@ -551,7 +512,8 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         susceptible=susceptible,
                         infected=infected,
                         removed=removed,
-                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
+                        x=x,
+                        y=y
                     )
 
                     session.add(new_vector)
@@ -616,8 +578,6 @@ def build_range_links():
     Adds rows to links table based on host distance from vector
     """
 
-    i = 0
-
     clear_screen()
     print("\nLoading host database into RAM...")
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
@@ -649,29 +609,23 @@ def build_range_links():
         vector_coordinates = [vector_x, vector_y]
 
         for human in population:
-            clear_screen()
-            print("Analyzing link {0} of {1}".format(i, (len(population) * len(vectors))))
             human_id = population.get(human)['id']
             human_x = float(population.get(human)['x'])
             human_y = float(population.get(human)['y'])
 
             human_coordinates = [human_x, human_y]
 
-        if session.query(Humans).filter(func.ST_DFullyWithin(Humans.location,
-                                                             Vectors.location,
-                                                             vector_range)).all():  # Should return True if within range
+            if euclidian(vector_coordinates,
+                         human_coordinates) < vector_range:  # Add the relationship to the link table
+                distance = euclidian(vector_coordinates, human_coordinates)
 
-            #distance = euclidian(vector_coordinates, human_coordinates)
-            distance = session.query(func.ST.Distance(Humans.geom, Vectors.geom))
+                new_link = vectorHumanLinks(
+                    human_id=human_id,
+                    vector_id=vector_id,
+                    distance=distance
+                )
 
-            new_link = vectorHumanLinks(
-                human_id=human_id,
-                vector_id=vector_id,
-                distance=distance
-            )
-        i += 1
-
-        session.add(new_link)
+                session.add(new_link)
     session.commit()
 
 
@@ -807,21 +761,21 @@ def simulation():  #TODO: This needs to be refactored.
                         vectors.get(v)['susceptible'] = 'True'
                     vector_list.append(v)  # TODO: Find a way to deal with this as it makes the sim slow.
 
-                if day == 0:  # Start log at day 0
-                    susceptible_count = session.query(Humans).filter_by(and_(susceptible='True',
-                                                                             subregion=subregion)).count()
-                    log_entry = Log(Day=day,
-                                    nSusceptible=initial_susceptible_humans,
-                                    nExposed=exposed_count,
-                                    nInfected=infected_count,
-                                    nRecovered=recovered_count,
-                                    nDeaths='NULL',
-                                    nBirthInfections='NULL',
-                                    nInfectedVectors=vector_infected_count,
-                                    nSuscVectors=initial_susceptible_vectors,
-                                    nRemovedVectors=vector_removed_count)
-                    session.add(log_entry)
-                    session.commit()
+                # if day == 0:  # Start log at day 0
+                #    susceptible_count = session.query(Humans).filter_by(and_(Humans.susceptible=='True',
+                #                                                             Humans.subregion==subregion)).count()
+                #    log_entry = Log(Day=day,
+                #                    nSusceptible=initial_susceptible_humans,
+                #                    nExposed=exposed_count,
+                #                    nInfected=infected_count,
+                #                    nRecovered=recovered_count,
+                #                    nDeaths='NULL',
+                #                    nBirthInfections='NULL',
+                #                    nInfectedVectors=vector_infected_count,
+                #                    nSuscVectors=initial_susceptible_vectors,
+                #                    nRemovedVectors=vector_removed_count)
+                #    session.add(log_entry)
+                #    session.commit()
 
                 # Run human-human interactions
                 for r in id_list:
@@ -956,7 +910,7 @@ def simulation():  #TODO: This needs to be refactored.
                               vector_susceptible_count, vector_infected_count, vector_removed_count))
 
                 log_entry = Log(Day=day + 1,
-                                subregion=subregion,
+                                Subregion=subregion,
                                 nSusceptible=susceptible_count,
                                 nExposed=exposed_count,
                                 nInfected=infected_count,
@@ -1017,8 +971,7 @@ def setupDB():
     global working_directory_set
     global session
 
-    # engine = create_engine('postgresql://simulator:Rward0232@spatial-epi.com/simulation')
-    engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
+    engine = create_engine('sqlite:///simulation.epi')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
@@ -1034,10 +987,11 @@ def read_db():
     global session, engine
 
     try:
+        engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 
         metadata = MetaData(engine)
         population = Table('Humans', metadata, autoload=True)
-        vectors = Table('Vectors', metadata, autoload=True)
+        vectors = Table('vectors', metadata, autoload=True)
 
         # mapper(Humans, population)
         # mapper(Vectors, vectors)
@@ -1046,7 +1000,7 @@ def read_db():
         session = Session()
 
         clear_screen()
-        input("\n\nSuccessfully loaded database. Press enter to return to the main menu.")
+        input("\n\nSuccessfully connected to database. Press enter to return to the main menu.")
 
         return session
 
@@ -1321,11 +1275,10 @@ def config_menu():
                   "1. Create configuration\n"
                   "2. Load configuration\n"
                   "3. Load existing tables\n"
-                  "4. Build subregion table\n"
-                  "5. Build host table\n"
-                  "6. Build vector table\n"
-                  "7. Build vector-human range links\n"
-                  "8. Main menu\n")
+                  "4. Build host table\n"
+                  "5. Build vector table\n"
+                  "6. Build vector-human range links\n"
+                  "7. Main menu\n")
 
             answer = input(">>> ")
 
@@ -1344,7 +1297,7 @@ def config_menu():
                     working_directory_set = True
                 setupDB()
 
-                build_subregion_table()
+                build_population_files(working_directory, 'Humans')
 
             if answer.startswith('5'):
                 if not working_directory_set:
@@ -1352,21 +1305,13 @@ def config_menu():
                     working_directory_set = True
                 setupDB()
 
-                build_population_files(working_directory, 'Humans')
-
-            if answer.startswith('6'):
-                if not working_directory_set:
-                    working_directory = input("Path to shape data: ")
-                    working_directory_set = True
-                setupDB()
-
                 build_population_files(working_directory, 'Vectors')
 
-            if answer.startswith('7'):
+            if answer.startswith('6'):
                 setupDB()
                 build_range_links()
 
-            if answer.startswith('8'):
+            if answer.startswith('7'):
                 main_menu()
 
         except KeyboardInterrupt:
