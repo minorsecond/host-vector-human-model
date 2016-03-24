@@ -10,6 +10,7 @@ Please run this on a rotating hard drive - building large
 
 import configparser
 import csv
+import logging
 import os.path
 import random
 from sys import exit as die
@@ -63,6 +64,13 @@ biting_rate = 3  # average bites per day
 mosquito_season_start = 78
 mosquito_season_end = 266
 
+# Set up logging
+logger = logging.getLogger("epiSim")
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler("epiSim.log")
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 def prompt(question):
     """
@@ -256,9 +264,7 @@ def build_vectors():
     subregions_list = []
     count = 0
     infected_vectors = 0
-    # mosquito_season_start = int(input("Start day of mosquito season: "))
-    # mosquito_season_end = int(input("End day of mosquito season: "))
-    mosquito_season = range(mosquito_season_start, mosquito_season_end)
+    mosquito_season = list(range(mosquito_season_start, mosquito_season_end))
 
     in_subregion_data = os.path.join(working_directory)
     sub_regions_dict = sub_regions_dict = shape_subregions(in_subregion_data)
@@ -379,6 +385,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
     try:
 
         if tableToBuild == 'Humans':
+            logger.info("Building host population.")
 
             # Print population structure info
             population = (build_population())
@@ -442,6 +449,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
             # Create initial human infections
             if initial_infected > 0:  # Only run if we start with human infections
+                logger.info("Infecting {0} initial hosts.".format(initial_infected))
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(initial_infected):
@@ -467,6 +475,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
             if number_of_importers > 0:
                 print("Setting up disease importers...")
+                logger.info("Setting up disease importers.")
                 importer_counter = 0  # If we're allowing random people to bring in disease from elsewhere
 
                 for i in range(number_of_importers + 1):  # Select importers randomly
@@ -487,12 +496,14 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                             session.commit()
                         importer_counter += 1
 
+            logger.info("Successfully built host population.")
             input("\nHuman population table successfully built. Press enter to return to main menu.")
 
         elif tableToBuild == 'Vectors':
 
             clear_screen()
             print("Building vector population")
+            logger.info("Setting up vector population.")
             sleep(5)
 
             vector = (build_vectors())
@@ -529,6 +540,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     session.add(new_vector)
                 session.commit()
             del vector[:]
+            logger.info("Successfully built vector population.")
             input("Vector population table successfully built. Press enter to return to main menu.")
 
     except KeyboardInterrupt:
@@ -543,6 +555,7 @@ def build_range_links():
 
     clear_screen()
     print("\nLoading host database into RAM...")
+    logger.info("Loading host database into ram, for building range links.")
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
     population = dict(
         (r.id, {
@@ -553,6 +566,7 @@ def build_range_links():
     )
 
     print("Loading vector database into RAM...")
+    logger.info("Loading vector database into ram, for building range links.")
     vectors = session.query(Vectors).yield_per(1000)
     vectors = dict(
         (v.id, {
@@ -564,6 +578,7 @@ def build_range_links():
     )
 
     print("Linking...")
+    logger.info("Attempting to build vector-host range links.")
     for vector in vectors:
         vector_id = vectors.get(vector)['id']
         vector_range = vectors.get(vector)['range']  # These may need some work
@@ -590,6 +605,7 @@ def build_range_links():
                 )
 
                 session.add(new_link)
+    logger.info("Successfully built vector-host range links. Committing to PostGIS.")
     session.commit()
 
 
@@ -644,12 +660,14 @@ def simulation():  #TODO: This needs to be refactored.
     try:
         setupDB()
     except NameError:
+        logger.error("Simulation was started with no database loaded.")
         input("Database not loaded. Press enter to return to main menu.")
         main_menu()
 
     if days_to_run >= 365:
         print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
         sleep(3)
+        logger.info("Beginning simulation - for {} days.".format(days_to_run))
 
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
     population = dict(
@@ -669,6 +687,8 @@ def simulation():  #TODO: This needs to be refactored.
             'contacts': 0
         }) for r in row
     )
+
+    logger.info("Successfully loaded host population data.")
 
     for p in population:
         subregion = population.get(p)['subregion']
@@ -690,6 +710,9 @@ def simulation():  #TODO: This needs to be refactored.
             'removed': v.removed
         }) for v in vectors
     )
+
+    logger.info("Successfully loaded vector population data.")
+    logger.info("Beginning simulation loop.")
 
     try:
         while day < days_to_run and converged == False:  # TODO: Finish this next.
@@ -769,37 +792,37 @@ def simulation():  #TODO: This needs to be refactored.
                                     person_a['infected'] = 'False'
                                     person_a['recovered'] = 'True'
 
-                    while contact_counter < contact_rate:  # Infect by contact rate per day
-                        # Choose any random number except the one that identifies the person selected, 'h'
+                        while contact_counter < contact_rate:  # Infect by contact rate per day
+                            # Choose any random number except the one that identifies the person selected, 'h'
 
-                        if not population.get(r)['linkedTo']:  # Check if a value is set in the "linkedTo" field
-                            pid = random.choice(id_list)
-
-                            while pid == r or population.get(pid)[
-                                'linkedTo']:  # Can't infect theirself or linked spouse
+                            if not population.get(r)['linkedTo']:  # Check if a value is set in the "linkedTo" field
                                 pid = random.choice(id_list)
 
-                        else:
-                            pid = population.get(r)['linkedTo']  # Contact spouse
-                            person_b = population.get(pid)
+                                while pid == r or population.get(pid)[
+                                    'linkedTo']:  # Can't infect theirself or linked spouse
+                                    pid = random.choice(id_list)
 
-                        if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
+                            else:
+                                pid = population.get(r)['linkedTo']  # Contact spouse
+                                person_b = population.get(pid)
 
-                            if person_a['infected'] == 'True':
-                                if random.uniform(0, 1) < kappa:  # chance of infection
-                                    person_b['exposed'] = 'True'
-                                    person_b['susceptible'] = 'False'
-                                    total_exposed += 1
+                            if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
 
-                            # the infection can go either way
-                            elif person_b['infected'] == 'True':
-                                if random.uniform(0, 1) < kappa:  # chance of infection
-                                    person_a['exposed'] = 'True'
-                                    person_a['susceptible'] = 'False'
-                                    total_exposed += 1
+                                if person_a['infected'] == 'True':
+                                    if random.uniform(0, 1) < kappa:  # chance of infection
+                                        person_b['exposed'] = 'True'
+                                        person_b['susceptible'] = 'False'
+                                        total_exposed += 1
 
-                        contact_counter += 1
-                        person_b['contacts'] += 1
+                                # the infection can go either way
+                                elif person_b['infected'] == 'True':
+                                    if random.uniform(0, 1) < kappa:  # chance of infection
+                                        person_a['exposed'] = 'True'
+                                        person_a['susceptible'] = 'False'
+                                        total_exposed += 1
+
+                            contact_counter += 1
+                            person_b['contacts'] += 1
 
                 # Run mosquito-human interactions
                 for v in vector_list:
@@ -894,7 +917,7 @@ def simulation():  #TODO: This needs to be refactored.
             day += 1
 
             #if vector_infected_count == 0 and
-
+        logger.info("Committing log to PostGIS.")
         session.commit()
 
         not_exposed = session.query(Humans).filter_by(susceptible='True').count()
@@ -911,6 +934,7 @@ def simulation():  #TODO: This needs to be refactored.
         # Update the log entry for the day. Might want to build in a dictionary first and then
         # update the table at end of simulation.
 
+        logger.info("Simulation complete.")
         input("\nPress enter to return to main menu.")
 
     except KeyboardInterrupt:
@@ -940,6 +964,7 @@ def setupDB():
     global working_directory_set
     global session
 
+    logger.info("Loading data from PostGIS.")
     # engine = create_engine('sqlite:///simulation.epi')
     engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
     DBSession = sessionmaker(bind=engine)
@@ -957,6 +982,7 @@ def read_db():
     global session, engine
 
     try:
+        logger.info("Connecting to PostGIS database.")
         engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 
         metadata = MetaData(engine)
@@ -970,11 +996,13 @@ def read_db():
         session = Session()
 
         clear_screen()
+        logger.info("Connected to PostGIS database.")
         input("\n\nSuccessfully connected to database. Press enter to return to the main menu.")
 
         return session
 
     except:
+        logger.error("Could not load database.")
         clear_screen()
         input("Could not load database. Make sure the database is called 'simulation.epi.' Unfortunately, you may need"
               "to rebuild it. Press enter to return to the main menu.")
@@ -998,11 +1026,13 @@ def drop_table(table_drop):
         session = Session()
 
         if table_drop == 'Humans':
+            logger.info("Dropped host population table.")
             population = Table('Humans', metadata, autoload=True)
             population.drop(engine)
             setupDB()
 
         elif table_drop == 'Vectors':
+            logger("Droped vector population table.")
             population = Table('Vectors', metadata, autoload=True)
             population.drop(engine)
             setupDB()
@@ -1016,7 +1046,7 @@ def drop_table(table_drop):
 
     except:
         clear_screen()
-        input("Could not droptable. Make sure database is named 'simulatione.epi,' and that it is loaded."
+        input("Could not droptable. Make sure database is named 'simulation.epi,' and that it is loaded."
               "Press enter to return to main menu.")
         main_menu()
 
@@ -1156,8 +1186,6 @@ def read_config_section(section, bool):
         if bool:
             try:
                 config_dict[option] = config.getboolean(section, option)
-                if config_dict[option] == -1:
-                    DebugPrint("skip: {}".format(option))
             except:
                 print("Exception on {}".format(option))
                 config_dict = None
@@ -1166,8 +1194,6 @@ def read_config_section(section, bool):
         else:
             try:
                 config_dict[option] = config.get(section, option)
-                if config_dict[option] == -1:
-                    DebugPrint("skip: {}".format(option))
             except:
                 print("Exception on {}".format(option))
                 config_dict = None
@@ -1294,6 +1320,8 @@ def main_menu():
     :return:
     """
 
+    logger.info("Program started.")
+
     working_directory_set = False
 
     while True:
@@ -1315,6 +1343,7 @@ def main_menu():
                 simulation()
 
             if answer.startswith('3'):
+                logger.info("User killed program.")
                 die()
 
         except KeyboardInterrupt:
