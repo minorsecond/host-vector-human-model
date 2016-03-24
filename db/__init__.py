@@ -1,14 +1,15 @@
 """
 SQLite database files
 """
-
-from sqlalchemy import Column, Integer, String, Boolean, Float, create_engine
+from geoalchemy2 import Geometry
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-engine = create_engine('sqlite:///simulation.epi')
+# engine = create_engine('sqlite:///simulation.epi')
+engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 Base = declarative_base()
 
-__all__ = ['Humans', 'Vectors']
+__all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks']
 
 
 class Humans(Base):
@@ -18,7 +19,7 @@ class Humans(Base):
 
     __tablename__ = "Humans"
     id = Column(Integer, primary_key=True, index=True)
-    uniqueID = Column(String)
+    uniqueID = Column(String, index=True)
     linkedTo = Column(String)  # Link uniqueID to another uniqueID in table for relationships (sexual transmission)
     subregion = Column(String)
     importer = Column(Boolean)
@@ -31,8 +32,7 @@ class Humans(Base):
     #dead = Column(String)
     dayOfInf = Column(Integer)
     dayOfExp = Column(Integer)
-    x = Column(String)
-    y = Column(String)
+    geom = Column(Geometry('POINT', srid=2845))
 
 
 class Vectors(Base):
@@ -42,7 +42,7 @@ class Vectors(Base):
 
     __tablename__ = "vectors"
     id = Column(Integer, primary_key=True, index=True)
-    # uniqueID = Column(String)
+    uniqueID = Column(String, index=True)
     subregion = Column(String)
     modified = Column(Boolean)
     alive = Column(String)
@@ -52,8 +52,7 @@ class Vectors(Base):
     susceptible = Column(String, index=True)
     infected = Column(String, index=True)
     removed = Column(String)
-    x = Column(String)
-    y = Column(String)
+    geom = Column(Geometry('POINT', srid=2845))
 
 
 class Log(Base):
@@ -62,7 +61,7 @@ class Log(Base):
     """
     __tablename__ = "Log"
     id = Column(Integer, primary_key=True)
-    Subregion = Column(String)
+    subregion = Column(String)
     Day = Column(Integer)
     nSusceptible = Column(Integer)
     nExposed = Column(Integer)
@@ -82,8 +81,26 @@ class vectorHumanLinks(Base):
 
     __tablename__ = 'vector_human_links'
     id = Column(Integer, primary_key=True)
-    human_id = Column(Integer, index=True)
-    vector_id = Column(Integer, index=True)
+    human_id = Column(Integer, ForeignKey(Humans.id), index=True)
+    vector_id = Column(Integer, ForeignKey(Vectors.id), index=True)
     distance = Column(Float)
 
-Base.metadata.create_all(engine)
+
+class subRegion(Base):
+    """
+    Table containing subregion polys
+    """
+
+    __tablename__ = 'subregions'
+    id = Column(Integer, primary_key=True)
+    subregion_id = Column(String, index=True)
+    population = Column(Integer)
+    area = Column(Float)
+    geom = Column(Geometry('POLYGON', srid=2845))
+
+
+Humans.__table__.create(engine, checkfirst=True)
+Vectors.__table__.create(engine, checkfirst=True)
+subRegion.__table__.create(engine, checkfirst=True)
+
+Base.metadata.create_all(engine, checkfirst=True)
