@@ -1,0 +1,6 @@
+﻿ALTER TABLE subregions DROP COLUMN area;
+ALTER TABLE subregions DROP COLUMN fake_pop;
+
+ALTER TABLE subregions ADD COLUMN area double precision;
+
+UPDATE subregions SET area=ST_Area(geom);
