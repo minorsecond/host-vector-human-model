@@ -510,7 +510,16 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
             clear_screen()
             print("Adding vectors to PostGIS database...")
+
+            subregion_counter = 1
+            number_of_subregions = len(vector)
+
             for dictionary in vector:
+                number_of_vectors = len(dictionary)
+                clear_screen()
+                print("Adding {0} vectors for subregion {1} of {2} to database...".format(number_of_vectors,
+                                                                                          subregion_counter,
+                                                                                          number_of_subregions))
                 for i in dictionary:
                     uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
@@ -539,6 +548,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
 
                     session.add(new_vector)
                 session.commit()
+                subregion_counter += 1
             del vector[:]
             logger.info("Successfully built vector population.")
             input("Vector population table successfully built. Press enter to return to main menu.")
