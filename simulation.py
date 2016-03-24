@@ -372,7 +372,7 @@ def output_status(n, total):
 def build_population_files(directory, tableToBuild):  #TODO: This needs to be refactored
     global session
 
-    idList = []
+    uuidList = []
     infectList = []
     importer_list = []
 
@@ -429,9 +429,10 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         recovered=recovered,
                         dayOfInf=dayOfInf,
                         dayOfExp=dayOfExp,
-                        x=x,
-                        y=y
+                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
+
+                    uuidList.append(uniqueID)
 
                     del i
                     session.add(new_human)
@@ -444,25 +445,25 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(initial_infected):
-                    infectList.append(random.randint(1, len(population)))  # Select random person, by id, to infect
+                    infectList.append(random.choice(uuidList))  # Select random person, by id, to infect
 
                 clear_screen()  # it's prettier
-                for i in infectList:
-                    while initial_infection_counter < initial_infected:
-                        for h in infectList:  # For each ID in the infected list,
-                            row = session.query(Humans).filter_by(
-                                id=h)  # select a human from the table whose ID matches
-                            for r in row:
-                                print("Infected {0} of {1}".format(row_count, initial_infected))
-                                if r.id in infectList:  # This might be redundant. I think ' if r.id == h'
-                                    row.update({"susceptible": 'False'}, synchronize_session='fetch')
-                                    row.update({"exposed": 'False'}, synchronize_session='fetch')
-                                    row.update({"infected": 'True'}, synchronize_session='fetch')
-                                    row.update({"recovered": 'False'}, synchronize_session='fetch')
-                                    initial_infection_counter += 1
-                                row_count += 1
+                # for i in infectList:
+                while initial_infection_counter < initial_infected:
+                    for h in infectList:  # For each ID in the infected list,
+                        row = session.query(Humans).filter_by(
+                            uniqueID=h)  # select a human from the table whose ID matches
+                        for r in row:
+                            print("Infected {0} of {1}".format(row_count, initial_infected))
+                            if r.uniqueID in infectList:  # This might be redundant. I think ' if r.id == h'
+                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                row.update({"exposed": 'False'}, synchronize_session='fetch')
+                                row.update({"infected": 'True'}, synchronize_session='fetch')
+                                row.update({"recovered": 'False'}, synchronize_session='fetch')
+                                initial_infection_counter += 1
+                            row_count += 1
 
-                            session.commit()
+                        session.commit()
 
             if number_of_importers > 0:
                 print("Setting up disease importers...")
@@ -500,7 +501,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
             print("Adding vectors to PostGIS database...")
             for dictionary in vector:
                 for i in dictionary:
-                    #uniqueID = dictionary[i].get('uuid')
+                    uniqueID = dictionary[i].get('uuid')
                     subregion = dictionary[i].get('subregion')
                     vector_range = dictionary[i].get('range')
                     alive = dictionary[i].get('alive')
@@ -513,7 +514,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                     y = dictionary[i].get('y')
 
                     new_vector = Vectors(
-                        #uniqueID=uniqueID,
+                        uniqueID=uniqueID,
                         subregion=subregion,
                         vector_range=vector_range,
                         alive=alive,
@@ -522,8 +523,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         susceptible=susceptible,
                         infected=infected,
                         removed=removed,
-                        x=x,
-                        y=y
+                        geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
                     session.add(new_vector)
@@ -534,54 +534,6 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
     except KeyboardInterrupt:
         input("You interrupted me! Press enter to return to main menu.")
         main_menu()
-
-
-def build_vector_table():
-    """
-    Builds vector table in database
-    """
-
-    clear_screen()
-    print("Building vector population")
-    sleep(5)
-
-    vector = (build_vectors())
-
-    print("Creating vector tables for database...")
-
-    for dictionary in vector:
-        for i in dictionary:
-            # uniqueID = dictionary[i].get('uuid')
-            subregion = dictionary[i].get('subregion')
-            vector_range = dictionary[i].get('range')
-            alive = dictionary[i].get('alive')
-            birthday = dictionary[i].get('birthday')
-            lifetime = dictionary[i].get('lifetime')
-            susceptible = dictionary[i].get('susceptible')
-            exposed = dictionary[i].get('exposed')
-            infected = dictionary[i].get('infected')
-            removed = dictionary[i].get('removed')
-            x = dictionary[i].get('x')
-            y = dictionary[i].get('y')
-
-            new_vector = Vectors(
-                # uniqueID=uniqueID,
-                subregion=subregion,
-                range=vector_range,
-                alive=alive,
-                birthday=birthday,
-                lifetime=lifetime,
-                susceptible=susceptible,
-                infected=infected,
-                removed=removed,
-                x=x,
-                y=y
-            )
-
-            session.add(new_vector)
-        session.commit()
-    del vector[:]
-    input("Vector population table successfully built. Press enter to return to menu.")
 
 
 def build_range_links():
@@ -688,6 +640,12 @@ def simulation():  #TODO: This needs to be refactored.
     total_exposed = 0
 
     clear_screen()
+
+    try:
+        setupDB()
+    except NameError:
+        input("Database not loaded. Press enter to return to main menu.")
+        main_menu()
 
     if days_to_run >= 365:
         print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
@@ -982,7 +940,8 @@ def setupDB():
     global working_directory_set
     global session
 
-    engine = create_engine('sqlite:///simulation.epi')
+    # engine = create_engine('sqlite:///simulation.epi')
+    engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
