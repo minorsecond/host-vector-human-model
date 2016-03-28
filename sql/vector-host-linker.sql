@@ -1,5 +1,5 @@
-﻿CREATE INDEX host_gix ON public."Humans" USING GIST (geom);
-CREATE INDEX vector_gix ON Vectors USING GIST (geom);
+﻿--CREATE INDEX host_gix ON public."Humans" USING GIST (geom);
+--CREATE INDEX vector_gix ON Vectors USING GIST (geom);
 DELETE FROM vector_human_links;
 
 INSERT INTO vector_human_links (human_id, vector_id, distance)

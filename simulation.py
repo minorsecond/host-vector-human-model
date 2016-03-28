@@ -18,7 +18,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table, and_
+from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log, vectorHumanLinks
@@ -35,17 +35,17 @@ random.seed(5)
 # Epidemic parameters
 causes_death = False
 death_chance = .001
-beta = 0.03
-gamma = .3  # TODO: See how this interacts with infectious period.
+beta = 0.25
+gamma = .5  # TODO: See how this interacts with infectious period.
 sigma = .35  # TODO: See how this interacts with infectious period.
 mu = .1
 theta = .1  # mother -> child transmission
 birthrate = 0  # birth rate
-kappa = .02  # sexual contact
+kappa = .5  # sexual contact
 zeta = .1  # blood transfusion
 tau = .25  # chance a mosquito picks up zika from human
-infectious_period = 5
-latent_period = 3
+infectious_period = 7
+latent_period = 7
 
 # Human population parameters
 initial_susceptible = 750000  # Unused with subregions file
@@ -53,16 +53,16 @@ initial_exposed = 0
 initial_infected = 1
 contact_rate = 1
 number_of_importers = 25  # number of people to bring back disease from foreign lands, over the study period
-bite_limit = 3  # Number of bites per human, per day.
+bite_limit = 5  # Number of bites per human, per day.
 
 # Vector population parameters
 gm_flag = False
 mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
-mosquito_init_infectd = 0
-biting_rate = 3  # average bites per day
-mosquito_season_start = 78
-mosquito_season_end = 266
+mosquito_init_infectd = 100
+biting_rate = 5  # average bites per day
+mosquito_season_start = 78  # Day of year to begin mosquito presence
+mosquito_season_end = 266  # Day of year to end mosquito presence
 
 # Set up logging
 logger = logging.getLogger("epiSim")
@@ -71,6 +71,16 @@ fh = logging.FileHandler("epiSim.log")
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+
+
+def clear_screen():
+    """
+    Clears the screen to keep output tidy
+    :return:
+    """
+
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 
 def prompt(question):
     """
@@ -219,23 +229,23 @@ def build_population():
                         population[x]['pregnant'] = 'True'
 
         for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
-            if population[y].get('age') >= 18:
-                link_id = None
-                if random.uniform(0, 1) < .52:
-                    link_id = random.choice(ID_list)
-                    while link_id == population[y].get('uuid'):
+            if not population[y].get('linkedTo'):
+                if population[y].get('age') >= 18:
+                    link_id = None
+                    if random.uniform(0, 1) < .52:
                         link_id = random.choice(ID_list)
-                    ID_list.remove(link_id)
+                        while link_id == population[y].get('uuid'):
+                            link_id = random.choice(ID_list)
+                        ID_list.remove(link_id)
 
-                    population[y]['linkedTo'] = link_id
-                    for z in population:
-                        if population.get('uuid') == population[y].get('linkedTo'):
-                            population[z]['linkedTo'] = population[y]['uuid']
+                        population[y]['linkedTo'] = link_id
+                        for z in population:
+                            if population.get('uuid') == population[y].get('linkedTo'):
+                                population[z]['linkedTo'] = population[y]['uuid']
 
 
         subregions_list.append(population)
         count += 1
-
 
     return subregions_list
 
@@ -246,7 +256,7 @@ def vector_lifetime(gm):
     """
 
     if gm:
-        lifetime = random.gauss(3, .5)
+        lifetime = random.choice([random.gauss(15, 2)], 0)  # TODO: Find a better method - this will yield ~50% RIDL
     else:
         lifetime = random.gauss(15, 2)
 
@@ -305,7 +315,7 @@ def build_vectors():
         for vector in range(mosquito_init_infectd):
             for x in vector_population:
                 if random.uniform(0, 1) < .01:
-                    vector_population[x]['infected'] = 'False'
+                    vector_population[x]['infected'] = 'True'
                     vector_population[x]['susceptible'] = 'False'
                     vector_population[x]['exposed'] = 'False'
 
@@ -676,14 +686,16 @@ def simulation():  #TODO: This needs to be refactored.
 
     if days_to_run >= 365:
         print("Currently running simulation. This will take a while. \nGrab some coffee and catch up on some reading.")
-        sleep(3)
         logger.info("Beginning simulation - for {} days.".format(days_to_run))
 
+    print("\nLoading host population data...")
     row = session.query(Humans).yield_per(1000)  # This might be way more efficient
     population = dict(
         (r.id, {
             'id': r.id,
+            'uniqueID': r.uniqueID,
             'subregion': r.subregion,
+            'linkedTo': r.linkedTo,
             'importer': r.importer,
             'importDay': r.importDay,
             'pregnant': 'False',
@@ -706,6 +718,9 @@ def simulation():  #TODO: This needs to be refactored.
         if subregion not in subregion_list:
             subregion_list.append(subregion)
 
+        id_list.append(population.get(p)['id'])
+
+    print("Loading vector population data...")
     vectors = session.query(Vectors).yield_per(1000)
     vectors = dict(
         (v.id, {
@@ -724,206 +739,181 @@ def simulation():  #TODO: This needs to be refactored.
     logger.info("Successfully loaded vector population data.")
     logger.info("Beginning simulation loop.")
 
+    print("Running simulation...")
+
+    vector_list = []
+    for v in vectors:
+        vector_list.append(v)
+
+    relationship_infected_list = []
+
     try:
-        while day < days_to_run and converged == False:  # TODO: Finish this next.
-            for subregion in subregion_list:
-                biteable_humans = number_humans
-                susceptible_count = 0
-                exposed_count = 0
-                infected_count = 0
-                recovered_count = 0
-                vector_list = []
-                vector_susceptible_count = 0
-                vector_infected_count = 0
-                vector_removed_count = 0
+        while day < days_to_run and converged == False:
 
-                for p in population:
-                    if population.get(p)['subregion'] == subregion:
-                        id_list.append(p)
+            biteable_humans = number_humans
+            exposed_count = 0
+            infected_count = 0
+            recovered_count = 0
+            vector_susceptible_count = 0
+            vector_infected_count = 0
+            vector_removed_count = 0
 
-                for v in vectors:
-                    if vectors.get(v)['birthday'] == day and \
-                                    vectors.get(v)['alive'] == 'False' and \
-                                    vectors.get(v)['removed'] == 'False':  # Number of vectors varies each day
-                        vectors.get(v)['alive'] = 'True'
-                        vectors.get(v)['susceptible'] = 'True'
-                    vector_list.append(v)  # TODO: Find a way to deal with this as it makes the sim slow.
-
-                if day == 0:  # Start log at day 0
-                    susceptible_count = session.query(Humans).filter_by(and_(Humans.susceptible == 'True',
-                                                                             Humans.subregion == subregion)).count()
-                    log_entry = Log(Day=day,
-                                    nSusceptible=initial_susceptible_humans,
-                                    nExposed=exposed_count,
-                                    nInfected=infected_count,
-                                    nRecovered=recovered_count,
-                                    nDeaths='NULL',
-                                    nBirthInfections='NULL',
-                                    nInfectedVectors=vector_infected_count,
-                                    nSuscVectors=initial_susceptible_vectors,
-                                    nRemovedVectors=vector_removed_count)
-                    session.add(log_entry)
-                    session.commit()
-
-                # Run human-human interactions
-                for r in id_list:
-
-                    population.get(r)['contacts'] = 0  # Reset contact counter each day
-
-                    if population.get(r)['subregion'] == subregion:
-                        person_a = population.get(r)
-                        contact_counter = 0
-                        person_a['biteCount'] = 0
-
-                        if person_a['susceptible'] == 'True':
-                            if person_a['importDay'] == day:
-                                choices = ["infected", "exposed"]
-                                choice = random.choice(choices)
-                                person_a[choice] = 'True'
-                                person_a['susceptible'] = 'False'
-
-                        if person_a['exposed'] == 'True':
-                            if person_a['dayOfExp'] >= latent_period:
-                                person_a['exposed'] = 'False'
-                                person_a['infected'] = 'True'
-
-                        if person_a['infected'] == 'True':
-                            if person_a['dayOfInf'] >= infectious_period:
-                                if causes_death:
-                                    person_a['infected'] = 'False'
-                                    if random.uniform(0, 1) < death_chance:
-                                        person_a['dead'] = 'True'
-
-                                    else:
-                                        person_a['recovered'] = 'True'
-                                        person_a['infected'] = 'False'
-
-                                else:
-                                    person_a['infected'] = 'False'
-                                    person_a['recovered'] = 'True'
-
-                        while contact_counter < contact_rate:  # Infect by contact rate per day
-                            # Choose any random number except the one that identifies the person selected, 'h'
-
-                            if not population.get(r)['linkedTo']:  # Check if a value is set in the "linkedTo" field
-                                pid = random.choice(id_list)
-
-                                while pid == r or population.get(pid)[
-                                    'linkedTo']:  # Can't infect theirself or linked spouse
-                                    pid = random.choice(id_list)
-
-                            else:
-                                pid = population.get(r)['linkedTo']  # Contact spouse
-                                person_b = population.get(pid)
-
-                            if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
-
-                                if person_a['infected'] == 'True':
-                                    if random.uniform(0, 1) < kappa:  # chance of infection
-                                        person_b['exposed'] = 'True'
-                                        person_b['susceptible'] = 'False'
-                                        total_exposed += 1
-
-                                # the infection can go either way
-                                elif person_b['infected'] == 'True':
-                                    if random.uniform(0, 1) < kappa:  # chance of infection
-                                        person_a['exposed'] = 'True'
-                                        person_a['susceptible'] = 'False'
-                                        total_exposed += 1
-
-                            contact_counter += 1
-                            person_b['contacts'] += 1
-
-                # Run mosquito-human interactions
-                for v in vector_list:
-                    i = 0
-                    if vectors.get(r)['subregion'] == subregion:
-                        vector = vectors.get(v)
-                        if vector['alive'] == 'True':
-                            while i < biting_rate and biteable_humans > 0:
-
-                                pid = random.choice(id_list)  # Pick a human to bite
-                                while population.get(pid)['subregion'] != subregion:
-                                    pid = random.choice(id_list)
-                                person = population.get(pid)
-
-                                if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(
-                                        0, 1) < beta:
-                                    person['susceptible'] = 'False'
-                                    person['exposed'] = 'True'
-
-                                elif person['infected'] == 'True' and vector[
-                                    'susceptible'] == 'True':  #TODO: chance of vector infection
-                                    vector['susceptible'] = 'False'
-                                    vector['infected'] = 'True'
-                                person['biteCount'] += 1
-
-                                if person['biteCount'] >= bite_limit:
-                                    biteable_humans -= 1
-                            i += 1
-
-                            if vector['daysAlive'] >= vector['lifetime']:
-                                vector['removed'] = 'True'
-                                vector['alive'] = 'False'
-                                vector['susceptible'] = 'False'
-                                vector['infected'] = 'False'
-
-                for person in id_list:  # Get the count for each bin, each day.
-                    if population.get(person)['susceptible'] == 'True':
-                        susceptible_count += 1
-
-                    elif population.get(person)['exposed'] == 'True':
-                        exposed_count += 1
-                        population.get(person)['dayOfExp'] += 1
-
-                    elif population.get(person)['infected'] == 'True':
-                        infected_count += 1
-                        population.get(person)['dayOfInf'] += 1
-
-                    elif population.get(person)['recovered'] == 'True':
-                        recovered_count += 1
-
-                for v in vector_list:
-                    if vectors.get(v)['alive'] == 'True':
-                        vectors.get(v)['daysAlive'] += 1
-
-                    if vectors.get(v)['susceptible'] == 'True':
-                        vector_susceptible_count += 1
-
-                    if vectors.get(v)['infected'] == 'True':
-                        vector_infected_count += 1
-
-                    elif vectors.get(v)['removed'] == 'True':
-                        vector_removed_count += 1
-
-                clear_screen()
-                print("Epidemiological Model Running\n")
-                print("Simulating day {0} of {1}".format(day, days_to_run))
-                print("\n---------------------------------"
-                      "\nSusceptible hosts:    {0}     "
-                      "\nExposed hosts:        {1}     "
-                      "\nInfected hosts:       {2}     "
-                      "\nRecovered hosts:      {3}     "
-                      "\n=============================="
-                      "\nSusceptible vectors:  {4}     "
-                      "\nInfected vectors:     {5}     "
-                      "\nRemoved vectors:      {6}     "
-                      "\n--------------------------------"
-                      .format(susceptible_count, exposed_count, infected_count, recovered_count,
-                              vector_susceptible_count, vector_infected_count, vector_removed_count))
-
-                log_entry = Log(Day=day + 1,
-                                subregion=subregion,
-                                nSusceptible=susceptible_count,
+            if day == 0:  # Start log at day 0
+                susceptible_count = session.query(Humans).filter(Humans.susceptible == 'True').count()
+                log_entry = Log(Day=day,
+                                nSusceptible=initial_susceptible_humans,
                                 nExposed=exposed_count,
                                 nInfected=infected_count,
                                 nRecovered=recovered_count,
-                                nDeaths='0',
-                                nBirthInfections='0',
+                                nDeaths=0,
+                                nBirthInfections=0,
                                 nInfectedVectors=vector_infected_count,
-                                nSuscVectors=vector_susceptible_count,
+                                nSuscVectors=initial_susceptible_vectors,
                                 nRemovedVectors=vector_removed_count)
                 session.add(log_entry)
+                session.commit()
+
+            susceptible_count = 0
+
+            # Run human-human interactions
+            for r in id_list:
+                population.get(r)['contacts'] = 0  # Reset contact counter each day
+                person_a = population.get(r)
+                contact_counter = 0
+                person_a['biteCount'] = 0
+
+                if person_a['susceptible'] == 'True':
+                    if person_a['importDay'] == day:
+                        choices = ["infected", "exposed"]
+                        choice = random.choice(choices)
+                        person_a[choice] = 'True'
+                        person_a['susceptible'] = 'False'
+
+                if person_a['uniqueID'] in relationship_infected_list and person_a['susceptible'] == 'True':
+                    if random.uniform(0, 1) < kappa:
+                        relationship_infected_list.remove(person_a['uniqueID'])  # TODO: Add random number gen
+                        person_a['susceptible'] = 'False'
+                        person_a['exposed'] = 'True'
+
+                if person_a['exposed'] == 'True':
+                    if person_a['dayOfExp'] >= latent_period:
+                        person_a['exposed'] = 'False'
+                        person_a['infected'] = 'True'
+
+                if person_a['infected'] == 'True':
+                    if person_a['dayOfInf'] >= infectious_period:
+                        if causes_death:
+                            person_a['infected'] = 'False'
+                            if random.uniform(0, 1) < death_chance:
+                                person_a['dead'] = 'True'
+
+                            else:
+                                person_a['recovered'] = 'True'
+                                person_a['infected'] = 'False'
+
+                        else:
+                            person_a['infected'] = 'False'
+                            person_a['recovered'] = 'True'
+
+                # This will only do something if the person is already infected
+                if person_a['linkedTo'] and person_a['infected'] == 'True':
+                    pid = person_a['linkedTo']  # Contact spouse
+
+                    relationship_infected_list.append(pid)
+
+            for vector in vector_list:
+                if vectors.get(vector)['birthday'] == day and \
+                                vectors.get(v)['alive'] == 'False' and \
+                                vectors.get(v)['removed'] == 'False':  # Number of vectors varies each day
+                    vectors.get(vector)['alive'] = 'True'
+                    vectors.get(vector)['susceptible'] = 'True'
+
+                if vectors.get(vector)['daysAlive'] >= vectors.get(vector)['lifetime']:
+                    vectors.get(vector)['removed'] = 'True'
+                    vectors.get(vector)['alive'] = 'False'
+                    vectors.get(vector)['susceptible'] = 'False'
+                    vectors.get(vector)['infected'] = 'False'
+
+                if vectors.get(vector)['alive'] == 'True':
+                    i = 0
+                    bite_list = []
+                    vector_contacts = session.query(vectorHumanLinks).filter_by(vector_id=vector)
+                    for bite in vector_contacts:
+                        bite_list.append(bite.human_id)
+
+                    if len(bite_list) > 0:
+                        while i < biting_rate and biteable_humans > 0:
+                            bite = random.choice(bite_list)
+
+                            if population.get(bite)['susceptible'] == 'True':
+                                if random.uniform(0, 1) < beta:
+                                    population.get(bite)['infected'] = 'exposed'
+                                    population.get(bite)['susceptible'] = 'False'
+
+                            elif population.get(bite)['infected'] == 'True' and vectors.get(vector)[
+                                'susceptible'] == 'True':
+                                vectors.get(vector)['infected'] = 'True'
+                                vectors.get(vector)['susceptible'] = 'False'
+
+                            population.get(bite)['biteCount'] += 1
+                            i += 1
+
+            for person in id_list:  # Get the count for each bin, each day.
+                if population.get(person)['susceptible'] == 'True':
+                    susceptible_count += 1
+
+                elif population.get(person)['exposed'] == 'True':
+                    exposed_count += 1
+                    population.get(person)['dayOfExp'] += 1
+
+                elif population.get(person)['infected'] == 'True':
+                    infected_count += 1
+                    population.get(person)['dayOfInf'] += 1
+
+                elif population.get(person)['recovered'] == 'True':
+                    recovered_count += 1
+
+            for v in vector_list:
+                if vectors.get(v)['alive'] == 'True':
+                    vectors.get(v)['daysAlive'] += 1
+
+                if vectors.get(v)['susceptible'] == 'True':
+                    vector_susceptible_count += 1
+
+                if vectors.get(v)['infected'] == 'True':
+                    vector_infected_count += 1
+
+                elif vectors.get(v)['removed'] == 'True':
+                    vector_removed_count += 1
+
+            clear_screen()
+            print("Epidemiological Model Running\n")
+            print("Simulating day {0} of {1}".format(day, days_to_run))
+            print("\n--------------------------------"
+                  "\nSusceptible hosts:    {0}     "
+                  "\nExposed hosts:        {1}     "
+                  "\nInfected hosts:       {2}     "
+                  "\nRecovered hosts:      {3}     "
+                  "\n================================"
+                  "\nSusceptible vectors:  {4}     "
+                  "\nInfected vectors:     {5}     "
+                  "\nRemoved vectors:      {6}     "
+                  "\n--------------------------------"
+                  .format(susceptible_count, exposed_count, infected_count, recovered_count,
+                          vector_susceptible_count, vector_infected_count, vector_removed_count))
+
+            log_entry = Log(Day=day + 1,
+                            subregion=None,
+                            nSusceptible=susceptible_count,
+                            nExposed=exposed_count,
+                            nInfected=infected_count,
+                            nRecovered=recovered_count,
+                            nDeaths='0',
+                            nBirthInfections='0',
+                            nInfectedVectors=vector_infected_count,
+                            nSuscVectors=vector_susceptible_count,
+                            nRemovedVectors=vector_removed_count)
+            session.add(log_entry)
             day += 1
 
             #if vector_infected_count == 0 and
@@ -1059,15 +1049,6 @@ def drop_table(table_drop):
         input("Could not droptable. Make sure database is named 'simulation.epi,' and that it is loaded."
               "Press enter to return to main menu.")
         main_menu()
-
-
-def clear_screen():
-    """
-    Clears the screen to keep output tidy
-    :return:
-    """
-
-    os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def create_config_file():
