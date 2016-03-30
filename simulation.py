@@ -18,6 +18,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
+from igraph import *
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
 
@@ -35,13 +36,13 @@ random.seed(5)
 # Epidemic parameters
 causes_death = False
 death_chance = .001
-beta = 0.25
+beta = 0.2
 gamma = .5  # TODO: See how this interacts with infectious period.
 sigma = .35  # TODO: See how this interacts with infectious period.
 mu = .1
 theta = .1  # mother -> child transmission
 birthrate = 0  # birth rate
-kappa = .5  # sexual contact
+kappa = .1  # sexual contact
 zeta = .1  # blood transfusion
 tau = .25  # chance a mosquito picks up zika from human
 infectious_period = 7
@@ -52,14 +53,14 @@ initial_susceptible = 750000  # Unused with subregions file
 initial_exposed = 0
 initial_infected = 1
 contact_rate = 1
-number_of_importers = 25  # number of people to bring back disease from foreign lands, over the study period
+number_of_importers = 50  # number of people to bring back disease from foreign lands, over the study period
 bite_limit = 5  # Number of bites per human, per day.
 
 # Vector population parameters
 gm_flag = False
 mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
-mosquito_init_infectd = 100
+mosquito_init_infectd = 10
 biting_rate = 5  # average bites per day
 mosquito_season_start = 78  # Day of year to begin mosquito presence
 mosquito_season_end = 266  # Day of year to end mosquito presence
@@ -80,6 +81,66 @@ def clear_screen():
     """
 
     os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def create_graph():
+    """
+    Creates graph for plotting output
+    """
+
+    # TODO: Complete graph code
+    id_list = []
+    host_id_list = []
+    vector_id_list = []
+    edge_list = []
+
+    hosts = session.query(Humans).yield_per(1000)
+    for host in hosts:
+        host_id_list.append(host.uniqueID)
+
+    vectors = session.query(Vectors).yield_per(1000)
+    for vector in vectors:
+        vector_id_list.append(vector.uniqueID)
+
+    n = len(host_id_list) + len(vector_id_list)
+
+    # dges = session.query(vectorHumanLinks).yield_per(1000)
+    # for edge in edges:
+    #    host_id = edge.human_id
+    #    vector_id = edge.vector_id
+    # connection = (host_id, vector_id)
+    # edge_list.append(connection)
+
+    id_list = host_id_list + vector_id_list
+
+    g = Graph()
+    g.add_vertices(n)
+    g.vs["uid"] = id_list
+
+    for i in g.vs:
+        if i['uid'] in vector_id_list:
+            i["group"] = "vector"
+            vector_id = i['uid']
+            vector = session.query(vectorHumanLinks).filter_by(vector_id=i['uid'])
+            for v in vector:
+                counter = 0
+                human_id = v.human_id
+                connection = (vector_id, human_id)
+
+                for x in g.vs:
+                    if x['uid'] in host_id_list:
+                        x["group"] = "host"
+
+                        if x['uid'] == human_id:
+                            edge_list.insert(counter, connection)
+                counter += 1
+
+    input(edge_list)
+
+    g.add_edges(edge_list)
+
+    layout = g.layout("lgl")
+    plot(g, layout=layout)
 
 
 def prompt(question):
@@ -195,6 +256,8 @@ def build_population():
         pop = int(i['population'])  # grab population from subregion dict
         ID_list = []
 
+        pop = 50
+
         clear_screen()
         print("Building {0} hosts for subregion {1} of {2}".format(pop, count, len(sub_regions_dict)))
 
@@ -290,12 +353,14 @@ def build_vectors():
         area = float(i['area'])  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
 
+        vector_pop = 100
+
         clear_screen()
         print("Building {0} vectors for subregion {1} of {2}".format(vector_pop, count, len(sub_regions_dict)))
 
         vector_population = dict(
             (x, {
-                # 'uuid': str(uuid()),
+                'uuid': str(uuid()),
                 'subregion': subregion,
                 'modified': modified,
                 'range': random.gauss(90, 2),  # 90 meters or so
@@ -312,15 +377,20 @@ def build_vectors():
         )
 
         # Infect the number of mosquitos set at beginning of script TODO: fix this.
-        for vector in range(mosquito_init_infectd):
-            for x in vector_population:
-                if random.uniform(0, 1) < .01:
-                    vector_population[x]['infected'] = 'True'
-                    vector_population[x]['susceptible'] = 'False'
-                    vector_population[x]['exposed'] = 'False'
+        # number_infected = 0
+        # while number_infected < mosquito_init_infectd:
+        #   for x in vector_population:
+        #        if random.uniform(0, 1) < .01:
+        #            vector_population[x]['infected'] = 'True'
+        #            vector_population[x]['susceptible'] = 'False'
+        #            vector_population[x]['exposed'] = 'False'
+
+        #           number_infected += 1
 
         subregions_list.append(vector_population)
         count += 1
+
+    input(vector_population)
 
     return subregions_list
 
@@ -510,7 +580,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
             input("\nHuman population table successfully built. Press enter to return to main menu.")
 
         elif tableToBuild == 'Vectors':
-
+            vector_uuidList = []
             clear_screen()
             print("Building vector population")
             logger.info("Setting up vector population.")
@@ -556,10 +626,39 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         geom='SRID=2845;POINT({0} {1})'.format(x, y)
                     )
 
+                    vector_uuidList.append(uniqueID)
+
                     session.add(new_vector)
                 session.commit()
                 subregion_counter += 1
+
+            # Create initial vector infections
+            if mosquito_init_infectd > 0:  # Only run if we start with mosquito infections
+                logger.info("Infecting {0} initial vectors.".format(mosquito_init_infectd))
+                initial_infection_counter = 0
+                infectList = []
+                row_count = 1
+                for i in range(mosquito_init_infectd):
+                    infectList.append(random.choice(vector_uuidList))  # Select random person, by id, to infect
+
+                clear_screen()  # it's prettier
+                # for i in infectList:
+                while initial_infection_counter < mosquito_init_infectd:
+                    for h in infectList:  # For each ID in the infected list,
+                        row = session.query(Vectors).filter_by(
+                            uniqueID=h)  # select a human from the table whose ID matches
+                        for r in row:
+                            print("Infected {0} of {1} vectors".format(row_count, mosquito_init_infectd))
+                            if r.uniqueID in infectList:  # This might be redundant. I think ' if r.id == h'
+                                row.update({"susceptible": 'False'}, synchronize_session='fetch')
+                                row.update({"infected": 'True'}, synchronize_session='fetch')
+                                initial_infection_counter += 1
+                            row_count += 1
+
+                        session.commit()
+
             del vector[:]
+
             logger.info("Successfully built vector population.")
             input("Vector population table successfully built. Press enter to return to main menu.")
 
@@ -725,6 +824,7 @@ def simulation():  #TODO: This needs to be refactored.
     vectors = dict(
         (v.id, {
             'id': v.id,
+            'uniqueID': v.uniqueID,
             'alive': v.alive,
             'daysAlive': 0,
             'birthday': v.birthday,
@@ -820,43 +920,47 @@ def simulation():  #TODO: This needs to be refactored.
                     pid = person_a['linkedTo']  # Contact spouse
 
                     relationship_infected_list.append(pid)
+            if day >= mosquito_season_start:
+                for vector in vector_list:
+                    if vectors.get(vector)['birthday'] == day and \
+                                    vectors.get(vector)['alive'] == 'False' and \
+                                    vectors.get(vector)['removed'] == 'False':  # Number of vectors varies each day
+                        vectors.get(vector)['alive'] = 'True'
+                        vectors.get(vector)['susceptible'] = 'True'
 
-            for vector in vector_list:
-                if vectors.get(vector)['birthday'] == day and \
-                                vectors.get(v)['alive'] == 'False' and \
-                                vectors.get(v)['removed'] == 'False':  # Number of vectors varies each day
-                    vectors.get(vector)['alive'] = 'True'
-                    vectors.get(vector)['susceptible'] = 'True'
+                    if vectors.get(vector)['daysAlive'] >= vectors.get(vector)['lifetime']:
+                        vectors.get(vector)['removed'] = 'True'
+                        vectors.get(vector)['alive'] = 'False'
+                        vectors.get(vector)['susceptible'] = 'False'
+                        vectors.get(vector)['infected'] = 'False'
 
-                if vectors.get(vector)['daysAlive'] >= vectors.get(vector)['lifetime']:
-                    vectors.get(vector)['removed'] = 'True'
-                    vectors.get(vector)['alive'] = 'False'
-                    vectors.get(vector)['susceptible'] = 'False'
-                    vectors.get(vector)['infected'] = 'False'
+                    if vectors.get(vector)['alive'] == 'True':
+                        i = 0
+                        bite_list = []
+                        vector_contacts = session.query(vectorHumanLinks).filter_by(
+                            vector_id=vectors.get(vector)["uniqueID"])
+                        for bite in vector_contacts:
+                            host = session.query(Humans).filter_by(uniqueID=bite.human_id)
+                            for human in host:
+                                bite_list.append(human.id)
 
-                if vectors.get(vector)['alive'] == 'True':
-                    i = 0
-                    bite_list = []
-                    vector_contacts = session.query(vectorHumanLinks).filter_by(vector_id=vector)
-                    for bite in vector_contacts:
-                        bite_list.append(bite.human_id)
+                        if len(bite_list) > 0:
+                            while i < biting_rate and biteable_humans > 0:
+                                bite = random.choice(bite_list)
 
-                    if len(bite_list) > 0:
-                        while i < biting_rate and biteable_humans > 0:
-                            bite = random.choice(bite_list)
+                                if population.get(bite)['susceptible'] == 'True' and vectors.get(vector)[
+                                    'infected'] == 'True':
+                                    if random.uniform(0, 1) < beta:
+                                        population.get(bite)['exposed'] = 'True'
+                                        population.get(bite)['susceptible'] = 'False'
 
-                            if population.get(bite)['susceptible'] == 'True':
-                                if random.uniform(0, 1) < beta:
-                                    population.get(bite)['infected'] = 'exposed'
-                                    population.get(bite)['susceptible'] = 'False'
+                                elif population.get(bite)['infected'] == 'True' and vectors.get(vector)[
+                                    'susceptible'] == 'True':
+                                    vectors.get(vector)['infected'] = 'True'
+                                    vectors.get(vector)['susceptible'] = 'False'
 
-                            elif population.get(bite)['infected'] == 'True' and vectors.get(vector)[
-                                'susceptible'] == 'True':
-                                vectors.get(vector)['infected'] = 'True'
-                                vectors.get(vector)['susceptible'] = 'False'
-
-                            population.get(bite)['biteCount'] += 1
-                            i += 1
+                                population.get(bite)['biteCount'] += 1
+                                i += 1
 
             for person in id_list:  # Get the count for each bin, each day.
                 if population.get(person)['susceptible'] == 'True':
@@ -880,8 +984,9 @@ def simulation():  #TODO: This needs to be refactored.
                 if vectors.get(v)['susceptible'] == 'True':
                     vector_susceptible_count += 1
 
-                if vectors.get(v)['infected'] == 'True':
-                    vector_infected_count += 1
+                if vectors.get(v)['alive'] == 'True':
+                    if vectors.get(v)['infected'] == 'True':
+                        vector_infected_count += 1
 
                 elif vectors.get(v)['removed'] == 'True':
                     vector_removed_count += 1
@@ -1265,7 +1370,8 @@ def config_menu():
                   "4. Build host table\n"
                   "5. Build vector table\n"
                   "6. Build vector-human range links\n"
-                  "7. Main menu\n")
+                  "7. Plot vector-human bigraph\n"
+                  "8. Main menu\n")
 
             answer = input(">>> ")
 
@@ -1299,6 +1405,10 @@ def config_menu():
                 build_range_links()
 
             if answer.startswith('7'):
+                setupDB()
+                create_graph()
+
+            if answer.startswith('8'):
                 main_menu()
 
         except KeyboardInterrupt:

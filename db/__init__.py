@@ -2,7 +2,7 @@
 SQLite database files
 """
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Boolean, Float, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 # engine = create_engine('sqlite:///simulation.epi')
@@ -81,8 +81,8 @@ class vectorHumanLinks(Base):
 
     __tablename__ = 'vector_human_links'
     id = Column(Integer, primary_key=True)
-    human_id = Column(Integer, ForeignKey(Humans.id), index=True)
-    vector_id = Column(Integer, ForeignKey(Vectors.id), index=True)
+    human_id = Column(String, index=True)
+    vector_id = Column(String, index=True)
     distance = Column(Float)
 
 
