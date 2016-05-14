@@ -684,6 +684,7 @@ def simulation():  #TODO: This needs to be refactored.
         (r.id, {
             'id': r.id,
             'subregion': r.subregion,
+            'linkedTo': r.linkedTo,
             'importer': r.importer,
             'importDay': r.importDay,
             'pregnant': 'False',
@@ -750,15 +751,15 @@ def simulation():  #TODO: This needs to be refactored.
                     vector_list.append(v)  # TODO: Find a way to deal with this as it makes the sim slow.
 
                 if day == 0:  # Start log at day 0
-                    susceptible_count = session.query(Humans).filter_by(and_(Humans.susceptible == 'True',
+                    susceptible_count = session.query(Humans).filter(and_(Humans.susceptible == 'True',
                                                                              Humans.subregion == subregion)).count()
                     log_entry = Log(Day=day,
                                     nSusceptible=initial_susceptible_humans,
                                     nExposed=exposed_count,
                                     nInfected=infected_count,
                                     nRecovered=recovered_count,
-                                    nDeaths='NULL',
-                                    nBirthInfections='NULL',
+                                    nDeaths=0,
+                                    nBirthInfections=0,
                                     nInfectedVectors=vector_infected_count,
                                     nSuscVectors=initial_susceptible_vectors,
                                     nRemovedVectors=vector_removed_count)
@@ -814,25 +815,25 @@ def simulation():  #TODO: This needs to be refactored.
 
                             else:
                                 pid = population.get(r)['linkedTo']  # Contact spouse
-                                person_b = population.get(pid)
+                                #person_b = population.get(pid)
+                                person_b = session.query(Humans).filter_by(uniqueID=pid).first()
 
-                            if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
+                                #if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
 
                                 if person_a['infected'] == 'True':
                                     if random.uniform(0, 1) < kappa:  # chance of infection
-                                        person_b['exposed'] = 'True'
-                                        person_b['susceptible'] = 'False'
+                                        person_b.update({"exposed": 'True'}, synchronize_session='fetch')
+                                        person_b.update({"susceptible": 'False'}, synchronize_session='fetch')
                                         total_exposed += 1
 
                                 # the infection can go either way
-                                elif person_b['infected'] == 'True':
+                                elif person_b.infected == 'True':
                                     if random.uniform(0, 1) < kappa:  # chance of infection
                                         person_a['exposed'] = 'True'
                                         person_a['susceptible'] = 'False'
                                         total_exposed += 1
 
                             contact_counter += 1
-                            person_b['contacts'] += 1
 
                 # Run mosquito-human interactions
                 for v in vector_list:
@@ -896,22 +897,6 @@ def simulation():  #TODO: This needs to be refactored.
                     elif vectors.get(v)['removed'] == 'True':
                         vector_removed_count += 1
 
-                clear_screen()
-                print("Epidemiological Model Running\n")
-                print("Simulating day {0} of {1}".format(day, days_to_run))
-                print("\n---------------------------------"
-                      "\nSusceptible hosts:    {0}     "
-                      "\nExposed hosts:        {1}     "
-                      "\nInfected hosts:       {2}     "
-                      "\nRecovered hosts:      {3}     "
-                      "\n=============================="
-                      "\nSusceptible vectors:  {4}     "
-                      "\nInfected vectors:     {5}     "
-                      "\nRemoved vectors:      {6}     "
-                      "\n--------------------------------"
-                      .format(susceptible_count, exposed_count, infected_count, recovered_count,
-                              vector_susceptible_count, vector_infected_count, vector_removed_count))
-
                 log_entry = Log(Day=day + 1,
                                 subregion=subregion,
                                 nSusceptible=susceptible_count,
@@ -924,6 +909,23 @@ def simulation():  #TODO: This needs to be refactored.
                                 nSuscVectors=vector_susceptible_count,
                                 nRemovedVectors=vector_removed_count)
                 session.add(log_entry)
+
+            clear_screen()
+            print("Epidemiological Model Running\n")
+            print("Simulating day {0} of {1}".format(day, days_to_run))
+            print("\n---------------------------------"
+                  "\nSusceptible hosts:    {0}     "
+                  "\nExposed hosts:        {1}     "
+                  "\nInfected hosts:       {2}     "
+                  "\nRecovered hosts:      {3}     "
+                  "\n=============================="
+                  "\nSusceptible vectors:  {4}     "
+                  "\nInfected vectors:     {5}     "
+                  "\nRemoved vectors:      {6}     "
+                  "\n--------------------------------"
+                  .format(susceptible_count, exposed_count, infected_count, recovered_count,
+                          vector_susceptible_count, vector_infected_count, vector_removed_count))
+
             day += 1
 
             #if vector_infected_count == 0 and
