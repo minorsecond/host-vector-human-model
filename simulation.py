@@ -60,7 +60,7 @@ bite_limit = 5  # Number of bites per human, per day.
 gm_flag = False
 mosquito_susceptible_coef = 500  # mosquitos per square kilometer
 mosquito_exposed = 0
-mosquito_init_infectd = 10
+mosquito_init_infectd = 100
 biting_rate = 5  # average bites per day
 mosquito_season_start = 78  # Day of year to begin mosquito presence
 mosquito_season_end = 266  # Day of year to end mosquito presence
@@ -91,6 +91,8 @@ def create_graph():
     # TODO: Complete graph code
     id_list = []
     host_id_list = []
+    _hosts = []
+    _vectors = []
     vector_id_list = []
     edge_list = []
 
@@ -101,6 +103,13 @@ def create_graph():
     vectors = session.query(Vectors).yield_per(1000)
     for vector in vectors:
         vector_id_list.append(vector.uniqueID)
+
+    for i in range(50):
+        _hosts.append(random.choice(host_id_list))
+        _vectors.append(random.choice(vector_id_list))
+
+    host_id_list = _hosts
+    vector_id_list = _vectors
 
     n = len(host_id_list) + len(vector_id_list)
 
@@ -256,8 +265,6 @@ def build_population():
         pop = int(i['population'])  # grab population from subregion dict
         ID_list = []
 
-        pop = 50
-
         clear_screen()
         print("Building {0} hosts for subregion {1} of {2}".format(pop, count, len(sub_regions_dict)))
 
@@ -353,8 +360,6 @@ def build_vectors():
         area = float(i['area'])  # get area from dict
         vector_pop = int((area / 1000000) * mosquito_susceptible_coef)  # sq. meters to square km
 
-        vector_pop = 100
-
         clear_screen()
         print("Building {0} vectors for subregion {1} of {2}".format(vector_pop, count, len(sub_regions_dict)))
 
@@ -389,8 +394,6 @@ def build_vectors():
 
         subregions_list.append(vector_population)
         count += 1
-
-    input(vector_population)
 
     return subregions_list
 
@@ -956,6 +959,7 @@ def simulation():  #TODO: This needs to be refactored.
 
                                 elif population.get(bite)['infected'] == 'True' and vectors.get(vector)[
                                     'susceptible'] == 'True':
+                                    print('infected a vector')
                                     vectors.get(vector)['infected'] = 'True'
                                     vectors.get(vector)['susceptible'] = 'False'
 
