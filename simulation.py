@@ -44,7 +44,7 @@ theta = .1  # mother -> child transmission
 birthrate = 0  # birth rate
 kappa = .1  # sexual contact
 zeta = .1  # blood transfusion
-tau = .25  # chance a mosquito picks up zika from human
+tau = .75  # chance a mosquito picks up zika from human
 infectious_period = 7
 latent_period = 7
 
@@ -93,32 +93,41 @@ def create_graph():
     host_id_list = []
     _hosts = []
     _vectors = []
+    tmp_links = []
+    _links = {}
+    links = []
     vector_id_list = []
     edge_list = []
 
     hosts = session.query(Humans).yield_per(1000)
     for host in hosts:
-        host_id_list.append(host.uniqueID)
+        host_id_list.append(host.id)
 
-    vectors = session.query(Vectors).yield_per(1000)
-    for vector in vectors:
-        vector_id_list.append(vector.uniqueID)
+    for i in range(25):
+        _hosts.append(random.choice(host_id_list))  # Choose n random hosts
 
-    for i in range(50):
-        _hosts.append(random.choice(host_id_list))
-        _vectors.append(random.choice(vector_id_list))
+    for host in _hosts:  # Get list of vectors for each host
+        print(host)
+        _links = session.query(vectorHumanLinks).filter_by(human_id=host)
 
+        for l in _links:
+            print('link: {0} to {1}'.format(l.human_id, l.vector_id))
+            tmp_links.append(l.vector_id)  # Add vectors to a list
+
+        # Append a list of vectors linked to a host to a dictionary
+        _links = {
+            'host_id':  host.id,
+            'vector_ids':   tmp_links
+        }
+
+        links.append(_links)  # Append _links dict to a list of dicts
+
+
+    # Copy lists
     host_id_list = _hosts
     vector_id_list = _vectors
 
     n = len(host_id_list) + len(vector_id_list)
-
-    # dges = session.query(vectorHumanLinks).yield_per(1000)
-    # for edge in edges:
-    #    host_id = edge.human_id
-    #    vector_id = edge.vector_id
-    # connection = (host_id, vector_id)
-    # edge_list.append(connection)
 
     id_list = host_id_list + vector_id_list
 
@@ -144,7 +153,7 @@ def create_graph():
                             edge_list.insert(counter, connection)
                 counter += 1
 
-    input(edge_list)
+    input('Edges: '.format(edge_list))
 
     g.add_edges(edge_list)
 
