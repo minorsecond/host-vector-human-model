@@ -88,7 +88,7 @@ def create_graph():
     Creates graph for plotting output
     """
 
-    # TODO: Complete graph code
+    # TODO: Needs to use UID from each table to avoid ID collision
     id_list = []
     host_id_list = []
     _hosts = []
@@ -116,16 +116,17 @@ def create_graph():
 
         # Append a list of vectors linked to a host to a dictionary
         _links = {
-            'host_id':  host.id,
+            'host_id':  host,
             'vector_ids':   tmp_links
         }
 
         links.append(_links)  # Append _links dict to a list of dicts
 
+    print(links)
 
     # Copy lists
     host_id_list = _hosts
-    vector_id_list = _vectors
+    vector_id_list = tmp_links
 
     n = len(host_id_list) + len(vector_id_list)
 
