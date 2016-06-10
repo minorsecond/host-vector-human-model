@@ -88,7 +88,8 @@ def create_graph():
     Creates graph for plotting output
     """
 
-    # TODO: Needs to use UID from each table to avoid ID collision
+    # TODO: Needs to use UID from each table to avoid ID collision8
+
     id_list = []
     host_id_list = []
     _hosts = []
@@ -779,7 +780,14 @@ def simulation():  #TODO: This needs to be refactored.
     converged = False
     id_list = []
     subregion_list = []
-    number_humans = session.query(Humans).count()
+
+    try:
+        number_humans = session.query(Humans).count()
+    except NameError:
+        clear_screen()
+        input("ERROR: Database has not yet been loaded. Press enter to return to menu")
+        main_menu()
+
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
     initial_susceptible_vectors = session.query(Vectors).filter_by(susceptible='True').count()
     nInfectedVectors = 1
@@ -958,7 +966,7 @@ def simulation():  #TODO: This needs to be refactored.
                                 bite_list.append(human.id)
 
                         if len(bite_list) > 0:
-                            while i < biting_rate and biteable_humans > 0:
+                            while i < biting_rate:
                                 bite = random.choice(bite_list)
 
                                 if population.get(bite)['susceptible'] == 'True' and vectors.get(vector)[
