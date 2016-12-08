@@ -1,0 +1,4 @@
+numpy
+sqlalchemy
+configparser
+geoalchemy2
