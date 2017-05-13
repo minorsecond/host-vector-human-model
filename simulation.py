@@ -852,7 +852,7 @@ def simulation():  #TODO: This needs to be refactored.
                 # Run mosquito-human interactions
                 for v in vector_list:
                     i = 0
-                    if vectors.get(r)['subregion'] == subregion:
+                    if vectors.get(v)['subregion'] == subregion:
                         vector = vectors.get(v)
                         if vector['alive'] == 'True':
                             while i < BITING_RATE and biteable_humans > 0:
