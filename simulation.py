@@ -866,6 +866,7 @@ def simulation():  #TODO: This needs to be refactored.
                                         0, 1) < BETA:
                                     person['susceptible'] = 'False'
                                     person['exposed'] = 'True'
+                                    print("DEBUG: We have a bite!!!")
 
                                 elif person['infected'] == 'True' and vector[
                                     'susceptible'] == 'True':  #TODO: chance of vector infection
