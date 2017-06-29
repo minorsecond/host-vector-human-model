@@ -10,3 +10,4 @@ conda install -y sqlalchemy
 pip install geoalchemy2
 pip install configparser
 pip install psycopg2
+pip install pyshp
