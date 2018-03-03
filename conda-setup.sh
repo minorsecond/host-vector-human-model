@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 echo "Creating Conda environment 'HostVectorModel'"
 conda create -y --name HostVectorModel python=3.4
 
