@@ -664,6 +664,13 @@ def simulation():  #TODO: This needs to be refactored.
     nSuscVectors = 1
     number_vectors = session.query(Vectors).count()
     total_exposed = 0
+    susceptible_count = 0
+    exposed_count = 0
+    infected_count = 0
+    recovered_count = 0
+    vector_susceptible_count = 0
+    vector_infected_count = 0
+    vector_removed_count = 0
 
     clear_screen()
 
@@ -737,7 +744,7 @@ def simulation():  #TODO: This needs to be refactored.
         while day < DAYS_TO_RUN and converged == False:  # TODO: Finish this next.
             print("initializing simulation")
             for subregion in subregion_list:
-                input(subregion)
+
                 biteable_humans = number_humans
                 susceptible_count = 0
                 exposed_count = 0
