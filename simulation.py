@@ -59,9 +59,9 @@ BITE_LIMIT = 3  # Number of bites per human, per day.
 GM_FLAG = False
 MOSQUITO_SUSCEPTIBLE_COEF = 500  # mosquitos per square kilometer
 MOSQUITO_EXPOSED = 0
-MOSQUITO_INIT_INFECTED = 100  # 0
+MOSQUITO_INIT_INFECTED = 0
 BITING_RATE = 3  # average bites per day
-MOSQUITO_SEASON_START = 1  #78
+MOSQUITO_SEASON_START = 78
 MOSQUITO_SEASON_END = 266
 
 # Set up logging
@@ -655,7 +655,7 @@ def simulation():  #TODO: This needs to be refactored.
     rowNum = 1
     day = 0
     converged = False
-    #id_list = []
+    id_list = []
     subregion_list = []
     number_humans = session.query(Humans).count()
     initial_susceptible_humans = session.query(Humans).filter_by(susceptible='True').count()
@@ -681,7 +681,7 @@ def simulation():  #TODO: This needs to be refactored.
 
     rows = session.query(Humans).yield_per(1000)  # This might be way more efficient
 
-    #print("DEBUG: Parsing population data from dict.")
+    print("DEBUG: Parsing population data from dict.")
     population = dict(
         (r.id, {
             'id': r.id,
@@ -701,7 +701,7 @@ def simulation():  #TODO: This needs to be refactored.
         }) for r in rows
     )
 
-    #print("DEBUG: Done.")
+    print("DEBUG: Done.")
 
     logger.info("Successfully loaded host population data.")
 
@@ -713,7 +713,7 @@ def simulation():  #TODO: This needs to be refactored.
 
     vectors = session.query(Vectors).yield_per(1000)
 
-    #print("DEBUG: Parsing vector data from dict.")
+    print("DEBUG: Parsing vector data from dict.")
     vectors = dict(
         (v.id, {
             'id': v.id,
@@ -728,7 +728,7 @@ def simulation():  #TODO: This needs to be refactored.
         }) for v in vectors
     )
 
-    #print("DEBUG: Done.")
+    print("DEBUG: Done.")
 
     logger.info("Successfully loaded vector population data.")
     logger.info("Beginning simulation loop.")
@@ -743,7 +743,6 @@ def simulation():  #TODO: This needs to be refactored.
                 infected_count = 0
                 recovered_count = 0
                 vector_list = []
-                id_list = []
                 vector_susceptible_count = 0
                 vector_infected_count = 0
                 vector_removed_count = 0
@@ -797,13 +796,11 @@ def simulation():  #TODO: This needs to be refactored.
                                 choice = random.choice(choices)
                                 person_a[choice] = 'True'
                                 person_a['susceptible'] = 'False'
-                                print("Disease imported into {}!".format(subregion))
 
                         if person_a['exposed'] == 'True':
                             if person_a['dayOfExp'] >= LATENT_PERIOD:
                                 person_a['exposed'] = 'False'
                                 person_a['infected'] = 'True'
-                                print("Someone became infected in {}!".format(subregion))
 
                         if person_a['infected'] == 'True':
                             if person_a['dayOfInf'] >= INFECTIOUS_PERIOD:
@@ -811,17 +808,14 @@ def simulation():  #TODO: This needs to be refactored.
                                     person_a['infected'] = 'False'
                                     if random.uniform(0, 1) < DEATH_CHANCE:
                                         person_a['dead'] = 'True'
-                                        print("Someone died in {}!".format(subregion))
 
                                     else:
                                         person_a['recovered'] = 'True'
                                         person_a['infected'] = 'False'
-                                        print("Someone recovered in {}!".format(subregion))
 
                                 else:
                                     person_a['infected'] = 'False'
                                     person_a['recovered'] = 'True'
-                                    print("Someone recovered in {}!".format(subregion))
 
                         while contact_counter < CONTACT_RATE:  # Infect by contact rate per day
                             # Choose any random number except the one that identifies the person selected, 'h'
@@ -845,7 +839,6 @@ def simulation():  #TODO: This needs to be refactored.
                                         person_b.update({"exposed": 'True'}, synchronize_session='fetch')
                                         person_b.update({"susceptible": 'False'}, synchronize_session='fetch')
                                         total_exposed += 1
-                                        print("Someone infected their spouse in {}!".format(subregion))
 
                                 # the infection can go either way
                                 elif person_b.infected == 'True':
@@ -853,7 +846,6 @@ def simulation():  #TODO: This needs to be refactored.
                                         person_a['exposed'] = 'True'
                                         person_a['susceptible'] = 'False'
                                         total_exposed += 1
-                                        print("Someone infected their spouse in {}!".format(subregion))
 
                             contact_counter += 1
 
@@ -1001,7 +993,7 @@ def setupDB():
 
     logger.info("Loading data from PostGIS.")
     # engine = create_engine('sqlite:///simulation.epi')
-    engine = create_engine('postgresql://rwardrup:Rward0232@localhost/simulation')
+    engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
@@ -1018,7 +1010,7 @@ def read_db():
 
     try:
         logger.info("Connecting to PostGIS database.")
-        engine = create_engine('postgresql://rwardrup:Rward0232@localhost/simulation')
+        engine = create_engine('postgresql://simulator:Rward0232@localhost/simulation')
 
         metadata = MetaData(engine)
         population = Table('Humans', metadata, autoload=True)
