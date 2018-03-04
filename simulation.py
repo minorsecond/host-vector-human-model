@@ -994,7 +994,7 @@ def setupDB():
 
     logger.info("Loading data from PostGIS.")
     # engine = create_engine('sqlite:///simulation.epi')
-    engine = create_engine('postgresql://simulator:REDACTED@localhost/simulation')
+    engine = create_engine('postgresql://rwardrup:REDACTED@localhost/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
@@ -1011,7 +1011,7 @@ def read_db():
 
     try:
         logger.info("Connecting to PostGIS database.")
-        engine = create_engine('postgresql://simulator:REDACTED@localhost/simulation')
+        engine = create_engine('postgresql://rwardrup:REDACTED@localhost/simulation')
 
         metadata = MetaData(engine)
         population = Table('Humans', metadata, autoload=True)
