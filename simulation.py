@@ -742,18 +742,18 @@ def simulation():  #TODO: This needs to be refactored.
 
     try:
         while day < DAYS_TO_RUN and converged == False:  # TODO: Finish this next.
+            biteable_humans = number_humans
+            susceptible_count = 0
+            exposed_count = 0
+            infected_count = 0
+            recovered_count = 0
+            vector_list = []
+            vector_susceptible_count = 0
+            vector_infected_count = 0
+            vector_removed_count = 0
+
             print("initializing simulation")
             for subregion in subregion_list:
-
-                biteable_humans = number_humans
-                susceptible_count = 0
-                exposed_count = 0
-                infected_count = 0
-                recovered_count = 0
-                vector_list = []
-                vector_susceptible_count = 0
-                vector_infected_count = 0
-                vector_removed_count = 0
 
                 print("DEBUG: Parsing subregion population..")
                 for p in population:
