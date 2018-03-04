@@ -737,7 +737,7 @@ def simulation():  #TODO: This needs to be refactored.
         while day < DAYS_TO_RUN and converged == False:  # TODO: Finish this next.
             print("initializing simulation")
             for subregion in subregion_list:
-                print(subregion)
+                input(subregion)
                 biteable_humans = number_humans
                 susceptible_count = 0
                 exposed_count = 0
