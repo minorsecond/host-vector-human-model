@@ -18,7 +18,7 @@ from time import sleep
 from uuid import uuid4 as uuid
 
 import numpy as np
-from sqlalchemy import create_engine, MetaData, Table, and_
+from sqlalchemy import create_engine, MetaData, Table, and_, func
 from sqlalchemy.orm import sessionmaker
 
 from db import Humans, Vectors, Log, vectorHumanLinks
@@ -571,8 +571,8 @@ def build_range_links():
     population = dict(
         (r.id, {
             'id': r.id,
-            'x': r.x,
-            'y': r.y
+            'x': func.st_x(r.geom),  # TODO: Geom to x
+            'y': func.st_y(r.geom)
         }) for r in row
     )
 
@@ -583,8 +583,8 @@ def build_range_links():
         (v.id, {
             'id': v.id,
             'range': v.vector_range,
-            'x': v.x,
-            'y': v.y
+            'x': func.st_x(v.geom),
+            'y': func.st_y(v.geom)
         }) for v in vectors
     )
 
@@ -1001,7 +1001,7 @@ def setupDB():
 
     logger.info("Loading data from PostGIS.")
     # engine = create_engine('sqlite:///simulation.epi')
-    engine = create_engine('postgresql://rwardrup:Rward0232@localhost/simulation')
+    engine = create_engine('postgresql://rwardrup:Rward0232@192.168.3.55/simulation')
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
@@ -1018,7 +1018,7 @@ def read_db():
 
     try:
         logger.info("Connecting to PostGIS database.")
-        engine = create_engine('postgresql://rwardrup:Rward0232@localhost/simulation')
+        engine = create_engine('postgresql://rwardrup:Rward0232@192.168.3.55/simulation')
 
         metadata = MetaData(engine)
         population = Table('Humans', metadata, autoload=True)

@@ -6,7 +6,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, crea
 from sqlalchemy.ext.declarative import declarative_base
 
 # engine = create_engine('sqlite:///simulation.epi')
-engine = create_engine('postgresql://rwardrup:Rward0232@localhost/simulation')
+engine = create_engine('postgresql://rwardrup:Rward0232@192.168.3.55/simulation')
 Base = declarative_base()
 
 __all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks']
