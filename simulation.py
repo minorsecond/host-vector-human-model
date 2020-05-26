@@ -12,7 +12,7 @@ import configparser
 import csv
 import logging
 import os.path
-import random
+#import random
 from sys import exit as die
 from time import sleep
 from uuid import uuid4 as uuid
@@ -30,7 +30,7 @@ working_directory_set = False
 
 # Simulation parameters
 DAYS_TO_RUN = 365
-random.seed(5)
+np.random.seed(5)
 
 # Epidemic parameters
 CAUSES_DEATH = False
@@ -155,12 +155,12 @@ def random_points(subregion_dictionary):
     y_min = min(y_values)
     y_max = max(y_values)
 
-    x = random.uniform(x_min, x_max)
-    y = random.uniform(y_min, y_max)
+    x = np.random.uniform(x_min, x_max)
+    y = np.random.uniform(y_min, y_max)
 
     while not point_in_poly(x, y, poly):  # Make sure point does not fall outside subregion
-        x = random.uniform(x_min, x_max)
-        y = random.uniform(y_min, y_max)
+        x = np.random.uniform(x_min, x_max)
+        y = np.random.uniform(y_min, y_max)
 
     coordinates = [x, y]
 
@@ -196,8 +196,8 @@ def build_population():
                 'subregion': subregion,
                 'importer': False,  # Brings disease in from another place
                 'importDay': None,
-                'age': random.randint(0, 99),
-                'sex': random.choice(['Male', 'Female']),
+                'age': np.random.randint(0, 99),
+                'sex': np.random.choice(['Male', 'Female']),
                 'pregnant': 'False',
                 'susceptible': 'True',
                 'infected': 'False',
@@ -216,16 +216,16 @@ def build_population():
                 ID_list.append(population[x].get('uuid'))
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
-                    if random.uniform(0, 1) < .4:
+                    if np.random.uniform(0, 1) < .4:
                         population[x]['pregnant'] = 'True'
 
         for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
             if population[y].get('age') >= 18:
                 link_id = None
-                if random.uniform(0, 1) < .52:
-                    link_id = random.choice(ID_list)
+                if np.random.uniform(0, 1) < .52:
+                    link_id = np.random.choice(ID_list)
                     while link_id == population[y].get('uuid'):
-                        link_id = random.choice(ID_list)
+                        link_id = np.random.choice(ID_list)
                     ID_list.remove(link_id)
 
                     population[y]['linkedTo'] = link_id
@@ -247,9 +247,9 @@ def vector_lifetime(gm):
     """
 
     if gm:
-        lifetime = random.gauss(3, .5)
+        lifetime = np.random.normal(3, .5)
     else:
-        lifetime = random.gauss(15, 2)
+        lifetime = np.random.normal(15, 2)
 
     return lifetime
 
@@ -289,9 +289,9 @@ def build_vectors():
                 # 'uuid': str(uuid()),
                 'subregion': subregion,
                 'modified': modified,
-                'range': random.gauss(90, 2),  # 90 meters or so
+                'range': np.random.normal(90, 2),  # 90 meters or so
                 'alive': 'False',  # They come to life on their birthdays
-                'birthday': random.choice(mosquito_season),
+                'birthday': np.random.choice(mosquito_season),
                 'lifetime': vector_lifetime(GM_FLAG),  # in days
                 'susceptible': 'False',
                 'exposed': 'False',
@@ -305,7 +305,7 @@ def build_vectors():
         # Infect the number of mosquitos set at beginning of script TODO: fix this.
         for vector in range(MOSQUITO_INIT_INFECTED):
             for x in vector_population:
-                if random.uniform(0, 1) < .01:
+                if np.random.uniform(0, 1) < .01:
                     vector_population[x]['infected'] = 'False'
                     vector_population[x]['susceptible'] = 'False'
                     vector_population[x]['exposed'] = 'False'
@@ -454,7 +454,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 initial_infection_counter = 0
                 row_count = 1
                 for i in range(INITIAL_INFECTED):
-                    infectList.append(random.choice(uuidList))  # Select random person, by id, to infect
+                    infectList.append(np.random.choice(uuidList))  # Select random person, by id, to infect
 
                 clear_screen()  # it's prettier
                 # for i in infectList:
@@ -480,9 +480,9 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                 importer_counter = 0  # If we're allowing random people to bring in disease from elsewhere
 
                 for i in range(NUMBER_OF_IMPORTERS + 1):  # Select importers randomly
-                    importer = random.randint(1, len(population))
+                    importer = np.random.randint(1, len(population))
                     while importer in infectList or importer in importer_list:  # Can't use already infected hosts
-                        importer = random.randint(1, len(population))
+                        importer = np.random.randint(1, len(population))
                     importer_list.append(importer)
 
                 for importer in importer_list:
@@ -490,7 +490,7 @@ def build_population_files(directory, tableToBuild):  #TODO: This needs to be re
                         for importer in importer_list:
                             row = session.query(Humans).filter_by(id=importer)
                             for person in row:
-                                importDay = random.randint(1, DAYS_TO_RUN)
+                                importDay = np.random.randint(1, DAYS_TO_RUN)
                                 row.update({'importer': True}, synchronize_session='fetch')
                                 row.update({'importDay': importDay}, synchronize_session='fetch')
 
@@ -801,7 +801,7 @@ def simulation():  #TODO: This needs to be refactored.
                         if person_a['susceptible'] == 'True':
                             if person_a['importDay'] == day:
                                 choices = ["infected", "exposed"]
-                                choice = random.choice(choices)
+                                choice = np.random.choice(choices)
                                 person_a[choice] = 'True'
                                 person_a['susceptible'] = 'False'
 
@@ -814,7 +814,7 @@ def simulation():  #TODO: This needs to be refactored.
                             if person_a['dayOfInf'] >= INFECTIOUS_PERIOD:
                                 if CAUSES_DEATH:
                                     person_a['infected'] = 'False'
-                                    if random.uniform(0, 1) < DEATH_CHANCE:
+                                    if np.random.uniform(0, 1) < DEATH_CHANCE:
                                         person_a['dead'] = 'True'
 
                                     else:
@@ -829,11 +829,11 @@ def simulation():  #TODO: This needs to be refactored.
                             # Choose any random number except the one that identifies the person selected, 'h'
 
                             if not population.get(r)['linkedTo']:  # Check if a value is set in the "linkedTo" field
-                                pid = random.choice(id_list)
+                                pid = np.random.choice(id_list)
 
                                 while pid == r or population.get(pid)[
                                     'linkedTo']:  # Can't infect theirself or linked spouse
-                                    pid = random.choice(id_list)
+                                    pid = np.random.choice(id_list)
 
                             else:
                                 pid = population.get(r)['linkedTo']  # Contact spouse
@@ -843,14 +843,14 @@ def simulation():  #TODO: This needs to be refactored.
                                 #if person_b['contacts'] == 0:  # Make sure not doubling up on contacts each day
 
                                 if person_a['infected'] == 'True':
-                                    if random.uniform(0, 1) < KAPPA:  # chance of infection
+                                    if np.random.uniform(0, 1) < KAPPA:  # chance of infection
                                         person_b.update({"exposed": 'True'}, synchronize_session='fetch')
                                         person_b.update({"susceptible": 'False'}, synchronize_session='fetch')
                                         total_exposed += 1
 
                                 # the infection can go either way
                                 elif person_b.infected == 'True':
-                                    if random.uniform(0, 1) < KAPPA:  # chance of infection
+                                    if np.random.uniform(0, 1) < KAPPA:  # chance of infection
                                         person_a['exposed'] = 'True'
                                         person_a['susceptible'] = 'False'
                                         total_exposed += 1
@@ -865,12 +865,12 @@ def simulation():  #TODO: This needs to be refactored.
                         if vector['alive'] == 'True':
                             while i < BITING_RATE and biteable_humans > 0:
 
-                                pid = random.choice(id_list)  # Pick a human to bite
+                                pid = np.random.choice(id_list)  # Pick a human to bite
                                 while population.get(pid)['subregion'] != subregion:
-                                    pid = random.choice(id_list)
+                                    pid = np.random.choice(id_list)
                                 person = population.get(pid)
 
-                                if person['susceptible'] == 'True' and vector['infected'] == 'True' and random.uniform(
+                                if person['susceptible'] == 'True' and vector['infected'] == 'True' and np.random.uniform(
                                         0, 1) < BETA:
                                     person['susceptible'] = 'False'
                                     person['exposed'] = 'True'
