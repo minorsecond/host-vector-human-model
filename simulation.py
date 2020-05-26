@@ -12,7 +12,6 @@ import configparser
 import csv
 import logging
 import os.path
-#import random
 from sys import exit as die
 from time import sleep
 from uuid import uuid4 as uuid
