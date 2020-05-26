@@ -175,23 +175,23 @@ def build_population():
 
     #in_subregion_data = os.path.join(working_directory, 'subregions.csv')
     in_subregion_data = os.path.join(working_directory)
-    sub_regions_dict = shape_subregions(in_subregion_data)
+    subregion_dict = shape_subregions(in_subregion_data)
     count = 1
 
-    for i in sub_regions_dict:
+    for i in subregion_dict:
 
-        subregion = i['id']  # subregion ID
-        pop = int(i['population'])  # grab population from subregion dict
-        ID_list = []
+        subregion_id = i['id']
+        subregion_population_count = int(i['population'])  # grab population from subregion dict
+        host_id_list = []
 
         clear_screen()
-        print("Building {0} hosts for subregion {1} of {2}".format(pop, count, len(sub_regions_dict)))
+        print("Building {0} hosts for subregion {1} of {2}".format(subregion_population_count, count, len(subregion_dict)))
 
         population = dict(
             (x, {
                 'uuid': str(uuid()),
                 'linkedTo': None,
-                'subregion': subregion,
+                'subregion': subregion_id,
                 'importer': False,  # Brings disease in from another place
                 'importDay': None,
                 'age': np.random.randint(0, 99),
@@ -206,25 +206,26 @@ def build_population():
                 'recState': 0,
                 'x': random_points(i)[0],
                 'y': random_points(i)[1]
-            }) for x in range(pop)
+            }) for x in range(subregion_population_count)
         )
 
         for x in population:  # assign pregnancy to some of population  This is duplicated.  TODO: figure out which one works
             if population[x].get('age') >= 18:
-                ID_list.append(population[x].get('uuid'))
+                host_id_list.append(population[x].get('uuid'))
             if population[x].get('sex') == "Female":
                 if population[x].get('age') >= 15 and population[x].get('age') < 51:
                     if np.random.uniform(0, 1) < .4:
                         population[x]['pregnant'] = 'True'
 
         for y in population:  # This must be a separate loop so that the ID_list is full before it runs.
-            if population[y].get('age') >= 18:
+            if population[y].get('age') >= 18:  # 18 or older can be married
                 link_id = None
-                if np.random.uniform(0, 1) < .52:
-                    link_id = np.random.choice(ID_list)
-                    while link_id == population[y].get('uuid'):
-                        link_id = np.random.choice(ID_list)
-                    ID_list.remove(link_id)
+                if np.random.uniform(0, 1) < .52:  # 48.2 percent of US population is married
+                    link_id = np.random.choice(host_id_list)  # Pick a partner
+                    while link_id == population[y].get('uuid'):  # Don't let someone get self-linked
+                        link_id = np.random.choice(host_id_list)  # Pick again
+                    host_id_list.remove(link_id)  # Remove a chosen person from the pool
+                    # TODO: Remove population[y] from possible links too. Maybe just check at the beginning of the loop
 
                     population[y]['linkedTo'] = link_id
                     for z in population:
