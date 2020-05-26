@@ -4,7 +4,6 @@ A SEIR simulation that uses SQLite and CSV Census files to define population par
 Please run this on a rotating hard drive - building large
 """
 
-# TODO: Switch all random calls to use numpy
 # TODO: Output to shapefile
 # TODO: Read and write config file
 
