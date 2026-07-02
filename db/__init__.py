@@ -1,12 +1,14 @@
 """
 SQLite database files
 """
+import os
+
 from geoalchemy2 import Geometry
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 # engine = create_engine('sqlite:///simulation.epi')
-engine = create_engine('postgresql://rwardrup:REDACTED@192.168.3.55/simulation')
+engine = create_engine(os.environ.get('SIMULATION_DB_URL', 'postgresql://localhost/simulation'))
 Base = declarative_base()
 
 __all__ = ['Humans', 'Vectors', 'Log', 'vectorHumanLinks']
